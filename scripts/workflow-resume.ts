@@ -1,0 +1,8 @@
+import { config } from "dotenv";
+config({path:".env.local",quiet:true});
+import { eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import { analysisRuns,repositories,schema } from "../src/db/schema";
+async function main(){const runId=process.argv[2];const connectionString=process.env.DATABASE_URL;if(!runId)throw new Error("RUN_ID_REQUIRED");if(!connectionString)throw new Error("DATABASE_URL_REQUIRED");if(process.env.INNGEST_DEV==="1"){process.env.INNGEST_BASE_URL||="http://127.0.0.1:8288";process.env.INNGEST_EVENT_KEY||="local-development";}const pool=new Pool({connectionString,max:1});try{const db=drizzle(pool,{schema});const [row]=await db.select({status:analysisRuns.status,scope:analysisRuns.scope,modelId:analysisRuns.modelId,owner:repositories.owner,name:repositories.name}).from(analysisRuns).innerJoin(repositories,eq(analysisRuns.repositoryId,repositories.id)).where(eq(analysisRuns.id,runId)).limit(1);if(!row)throw new Error("RUN_NOT_FOUND");if(["complete","partial","failed"].includes(row.status))throw new Error(`RUN_ALREADY_TERMINAL:${row.status}`);const [{inngest,runRequested}]=await Promise.all([import("../src/inngest/client")]);const event=runRequested.create({runId,repositorySlug:`${row.owner}/${row.name}`,limit:row.scope.limit,modelId:row.modelId??"gpt-5-mini"},{id:`issuelens-resume-${runId}-${Date.now()}`});const sent=await inngest.send(event);console.log(JSON.stringify({runId,previousStatus:row.status,resumeEventId:sent.ids[0],terminalItemsWillBeReused:true},null,2));}finally{await pool.end();}}
+main().catch((error)=>{console.error(error instanceof Error?error.message:"WORKFLOW_RESUME_FAILED");process.exitCode=1;});

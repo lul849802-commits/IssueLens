@@ -1,0 +1,8 @@
+allowBuilds:
+  esbuild: true
+  inngest-cli: true
+  protobufjs: true
+  sharp: false
+  unrs-resolver: false
+minimumReleaseAgeExclude:
+  - inngest-cli@1.43.0

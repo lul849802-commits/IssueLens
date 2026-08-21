@@ -1,0 +1,148 @@
+import { InngestTestEngine } from "@inngest/test";
+import { Inngest } from "inngest";
+import { describe, expect, it, vi } from "vitest";
+
+import { createAnalyzeRunFunction } from "./analyze-run";
+
+describe("analyzeRun Inngest function", () => {
+  it("checkpoints setup, analyzes each item, and aggregates", async () => {
+    const items = ["item-1", "item-2"].map((runIssueId, index) => ({
+      runIssueId,
+      contentHash: String(index + 1).repeat(64),
+      issue: {
+        number: index + 1,
+        title: `Issue ${index + 1}`,
+        body: "Body",
+        labels: [],
+        state: "open" as const,
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-02T00:00:00.000Z",
+        commentsCount: 0,
+      },
+    }));
+    const store = {
+      markWorkflowStarted: vi.fn(),
+      prepareAnalysis: vi.fn().mockResolvedValue(items),
+      claim: vi.fn().mockImplementation(async (id: string) => ({
+        kind: "claimed",
+        item: items.find((item) => item.runIssueId === id),
+      })),
+      findCached: vi.fn().mockResolvedValue(null),
+      recordSuccess: vi.fn(),
+      recordCached: vi.fn(),
+      recordFailure: vi.fn(),
+      prepareClustering: vi.fn().mockResolvedValue(items.map((item) => ({
+        runIssueId: item.runIssueId,
+        issueNumber: item.issue.number,
+        title: item.issue.title,
+        commentsCount: item.issue.commentsCount,
+        updatedAt: item.issue.updatedAt,
+        analysis: providerResult.analysis,
+      }))),
+      persistSemanticClusters: vi.fn().mockResolvedValue({ clusters: 1, members: 2, unclustered: 0, method: "semantic" }),
+      buildClusters: vi.fn().mockResolvedValue({ clusters: 1, members: 2 }),
+      aggregate: vi.fn().mockResolvedValue({
+        total: 2,
+        succeeded: 2,
+        cached: 0,
+        failed: 0,
+        status: "complete",
+      }),
+      failRun: vi.fn(),
+    };
+    const dependencies = {
+      store,
+      analyzer: {
+        modelId: "fixture-model",
+        analyze: vi.fn().mockResolvedValue(providerResult),
+      },
+      clusterer: {
+        modelId: "fixture-model",
+        cluster: vi.fn().mockResolvedValue({
+          plan: { clusters: [{ name: "Related issues", summary: "Two related failures.", suggestedAction: "product", memberRunIssueIds: ["item-1", "item-2"] }], unclusteredRunIssueIds: [] },
+          providerRequestId: "req_cluster", inputTokens: 10, outputTokens: 10, latencyMs: 10, modelId: "fixture-model",
+        }),
+      },
+      fetchAndPersist: vi.fn().mockResolvedValue({
+        repositoryId: "repository-1",
+        issuesAccepted: 2,
+        pagesFetched: 1,
+      }),
+    };
+    const fn = createAnalyzeRunFunction(
+      new Inngest({ id: "issuelens-test" }),
+      () => dependencies as never,
+    );
+    const test = new InngestTestEngine({ function: fn });
+
+    const { result, ctx } = await test.execute({
+      events: [{
+        name: "issuelens/run.requested",
+        data: {
+          runId: "11111111-1111-4111-8111-111111111111",
+          repositorySlug: "openai/openai-node",
+          limit: 2,
+          modelId: "fixture-model",
+        },
+      }],
+    });
+
+    expect(result).toMatchObject({ status: "complete", succeeded: 2 });
+    expect(ctx.step.run).toHaveBeenCalledWith("start-run", expect.any(Function));
+    expect(ctx.step.run).toHaveBeenCalledWith(
+      "fetch-and-persist-issues",
+      expect.any(Function),
+    );
+    expect(ctx.step.run).toHaveBeenCalledWith(
+      "prepare-analysis-items",
+      expect.any(Function),
+    );
+    expect(ctx.step.run).toHaveBeenCalledWith("aggregate-run", expect.any(Function));
+    expect(ctx.step.run).toHaveBeenCalledWith("prepare-clustering", expect.any(Function));
+    expect(ctx.step.run).toHaveBeenCalledWith("cluster-repository", expect.any(Function));
+    expect(ctx.step.run).toHaveBeenCalledWith("persist-semantic-clusters", expect.any(Function));
+    expect(dependencies.analyzer.analyze).toHaveBeenCalledTimes(2);
+    expect(store.recordSuccess).toHaveBeenCalledTimes(2);
+    expect(store.failRun).not.toHaveBeenCalled();
+  });
+
+  it("falls back without losing completed issue analyses when semantic clustering fails", async () => {
+    const items = ["item-1", "item-2"].map((runIssueId, index) => ({
+      runIssueId, contentHash: String(index + 1).repeat(64), issue: { number: index + 1,
+        title: `Issue ${index + 1}`, body: "Body", labels: [], state: "open" as const,
+        createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z", commentsCount: 0 },
+    }));
+    const store = { markWorkflowStarted: vi.fn(), prepareAnalysis: vi.fn().mockResolvedValue(items),
+      claim: vi.fn().mockImplementation(async (id:string)=>({kind:"claimed",item:items.find((item)=>item.runIssueId===id)})),
+      findCached: vi.fn().mockResolvedValue(null), recordSuccess: vi.fn(), recordCached: vi.fn(), recordFailure: vi.fn(),
+      prepareClustering: vi.fn().mockResolvedValue(items.map((item)=>({runIssueId:item.runIssueId,issueNumber:item.issue.number,title:item.issue.title,commentsCount:0,updatedAt:item.issue.updatedAt,analysis:providerResult.analysis}))),
+      persistSemanticClusters: vi.fn(), buildClusters: vi.fn().mockResolvedValue({clusters:2,members:2}),
+      aggregate: vi.fn().mockResolvedValue({total:2,succeeded:2,cached:0,failed:0,status:"complete"}), failRun: vi.fn() };
+    const dependencies={store,analyzer:{modelId:"fixture-model",analyze:vi.fn().mockResolvedValue(providerResult)},
+      clusterer:{modelId:"fixture-model",cluster:vi.fn().mockRejectedValue(new Error("CLUSTER_SCHEMA_INVALID"))},
+      fetchAndPersist:vi.fn().mockResolvedValue({repositoryId:"repository-1",issuesAccepted:2,pagesFetched:1})};
+    const fn=createAnalyzeRunFunction(new Inngest({id:"issuelens-fallback-test"}),()=>dependencies as never);
+    const {result}=await new InngestTestEngine({function:fn}).execute({events:[{name:"issuelens/run.requested",id:"resume-event-1",data:{runId:"11111111-1111-4111-8111-111111111111",repositorySlug:"openai/openai-node",limit:2,modelId:"fixture-model"}}]});
+    expect(result).toMatchObject({status:"complete",clusterResult:{method:"fallback",clusters:2,members:2,errorCode:"CLUSTER_SCHEMA_INVALID"}});
+    expect(store.buildClusters).toHaveBeenCalled(); expect(store.persistSemanticClusters).not.toHaveBeenCalled(); expect(store.failRun).not.toHaveBeenCalled();
+  });
+});
+
+const providerResult = {
+  analysis: {
+    category: "bug" as const,
+    summary: "功能异常。",
+    productArea: "unknown",
+    userScenario: "用户使用功能",
+    sentiment: "negative" as const,
+    severity: "unknown" as const,
+    reproducibility: "insufficient" as const,
+    suggestedAction: "product" as const,
+    rationale: "Issue 报告了异常，但证据有限。",
+    confidence: 0.6,
+  },
+  providerRequestId: "req_fixture",
+  inputTokens: 100,
+  outputTokens: 50,
+  latencyMs: 10,
+};

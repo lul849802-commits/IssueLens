@@ -1,0 +1,1 @@
+ALTER TABLE "issue_analyses" ADD COLUMN "input_truncated" boolean DEFAULT false NOT NULL;
