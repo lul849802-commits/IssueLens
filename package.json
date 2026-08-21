@@ -28,6 +28,7 @@
     "workflow:resume": "tsx scripts/workflow-resume.ts",
     "cluster:verify": "tsx scripts/cluster-verify.ts",
     "workflow:reconcile": "tsx scripts/workflow-reconcile.ts",
+    "metrics:run": "node scripts/report-run-metrics.mjs",
     "security:scan": "node scripts/secret-scan.mjs",
     "release:check": "pnpm security:scan && pnpm lint && pnpm typecheck && pnpm test && pnpm db:check && pnpm build",
     "inngest:dev": "inngest-cli dev --no-discovery -u http://localhost:3000/api/inngest",

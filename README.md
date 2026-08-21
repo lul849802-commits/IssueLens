@@ -2,7 +2,9 @@
 
 IssueLens 是一个面向产品与开发团队的 AI 分析工具：读取公开 GitHub 仓库最近更新的 Issue，生成结构化、可解释且可回溯原文的产品洞察。
 
-当前状态：第四阶段 **4G-A 质量门已通过，正在执行 4G-B 云端发布**。公开仓库输入、GitHub 导入、AI 分析、语义聚类、可恢复任务、洞察看板、证据下钻、只读分享与生产 E2E 已形成完整闭环。
+当前状态：第四阶段 **4G-B 生产部署与 100-Issue 压力验收有条件通过**。公开仓库输入、GitHub 导入、AI 分析、可恢复任务、洞察看板、证据下钻、只读分享与生产 E2E 已形成完整闭环；大样本语义聚类性能仍在治理。
+
+线上演示：https://issuelens.vercel.app
 
 ## 技术基线
 
@@ -130,9 +132,10 @@ pnpm workflow:reconcile 60
 ```powershell
 pnpm security:scan
 pnpm release:check
+pnpm metrics:run <run-id>
 ```
 
-部署后使用 `GET /api/health` 检查生产配置和数据库连通性。接口只返回总体检查状态，不回传变量名、连接串或 provider 错误正文。详细步骤见 `docs/operations/DEPLOYMENT.md`。
+部署后使用 `GET /api/health` 检查生产配置和数据库连通性。接口只返回总体检查状态，不回传变量名、连接串或 provider 错误正文。详细步骤见 `docs/operations/DEPLOYMENT.md`；100-Issue 验收与成本记录见 `docs/operations/LOAD-TEST-100-ISSUES.md` 和 `docs/operations/COST-AND-OBSERVABILITY.md`。
 
 ## 环境变量
 
