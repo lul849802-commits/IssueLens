@@ -1,21 +1,342 @@
 import { z } from "zod";
+
 import { validateClusterPlan } from "@/domain/clustering/cluster-plan";
-import { CLUSTER_OUTPUT_INSTRUCTIONS, REPOSITORY_CLUSTER_INSTRUCTIONS, serializeClusterEvidence } from "@/services/clustering/prompt";
-import type { ClusterEvidenceItem, ClusterProviderResult, RepositoryClusterer } from "./cluster-port";
+import {
+  CLUSTER_OUTPUT_INSTRUCTIONS,
+  REPOSITORY_CLUSTER_INSTRUCTIONS,
+  serializeClusterEvidence,
+} from "@/services/clustering/prompt";
 
-export type ClusterProviderErrorCode="CLUSTER_AUTHENTICATION_FAILED"|"CLUSTER_RATE_LIMITED"|"CLUSTER_QUOTA_EXHAUSTED"|"CLUSTER_NETWORK_ERROR"|"CLUSTER_PROVIDER_ERROR"|"CLUSTER_SCHEMA_INVALID"|"CLUSTER_REFUSED"|"CLUSTER_CONTENT_FILTERED";
-export class ClusterProviderError extends Error { constructor(readonly code:ClusterProviderErrorCode,readonly retryable:boolean,readonly status:number|null=null){super(code);this.name="ClusterProviderError";} }
-export interface OpenAIClusterClientOptions { apiKey:string; model?:string; fetch?:typeof fetch; apiBaseUrl?:string; timeoutMs?:number; sleep?:(ms:number)=>Promise<void>; maxAttempts?:number; }
+import type {
+  ClusterEvidenceItem,
+  ClusterProviderResult,
+  RepositoryClusterer,
+} from "./cluster-port";
 
-const envelopeSchema=z.object({id:z.string().optional(),output_text:z.string().optional(),incomplete_details:z.object({reason:z.string().nullable().optional()}).nullable().optional(),output:z.array(z.object({content:z.array(z.object({type:z.string(),text:z.string().optional(),refusal:z.string().optional()}).passthrough()).optional()}).passthrough()).optional(),usage:z.object({input_tokens:z.number().int().nonnegative().optional(),output_tokens:z.number().int().nonnegative().optional()}).optional()}).passthrough();
-const outputSchema={type:"object",additionalProperties:false,properties:{clusters:{type:"array",maxItems:50,items:{type:"object",additionalProperties:false,properties:{name:{type:"string",minLength:3,maxLength:80},summary:{type:"string",minLength:1,maxLength:320},suggestedAction:{type:"string",enum:["product","documentation","operations","community","research"]},memberRunIssueIds:{type:"array",minItems:2,maxItems:100,items:{type:"string",format:"uuid"}}},required:["name","summary","suggestedAction","memberRunIssueIds"]}},unclusteredRunIssueIds:{type:"array",maxItems:100,items:{type:"string",format:"uuid"}}},required:["clusters","unclusteredRunIssueIds"]} as const;
+export type ClusterProviderErrorCode =
+  | "CLUSTER_AUTHENTICATION_FAILED"
+  | "CLUSTER_RATE_LIMITED"
+  | "CLUSTER_QUOTA_EXHAUSTED"
+  | "CLUSTER_NETWORK_ERROR"
+  | "CLUSTER_PROVIDER_ERROR"
+  | "CLUSTER_SCHEMA_INVALID"
+  | "CLUSTER_REFUSED"
+  | "CLUSTER_CONTENT_FILTERED";
+
+export interface ClusterFailureMetrics {
+  providerRequestId: string | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  latencyMs: number | null;
+}
+export class ClusterProviderError extends Error {
+  constructor(
+    readonly code: ClusterProviderErrorCode,
+    readonly retryable: boolean,
+    readonly status: number | null = null,
+    readonly metrics: ClusterFailureMetrics = {
+      providerRequestId: null,
+      inputTokens: null,
+      outputTokens: null,
+      latencyMs: null,
+    },
+  ) {
+    super(code);
+    this.name = "ClusterProviderError";
+  }
+}
+
+export interface OpenAIClusterClientOptions {
+  apiKey: string;
+  model?: string;
+  fetch?: typeof fetch;
+  apiBaseUrl?: string;
+  timeoutMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+  maxAttempts?: number;
+}
+
+const envelopeSchema = z.object({
+  id: z.string().optional(),
+  output_text: z.string().optional(),
+  incomplete_details: z.object({
+    reason: z.string().nullable().optional(),
+  }).nullable().optional(),
+  output: z.array(z.object({
+    content: z.array(z.object({
+      type: z.string(),
+      text: z.string().optional(),
+      refusal: z.string().optional(),
+    }).passthrough()).optional(),
+  }).passthrough()).optional(),
+  usage: z.object({
+    input_tokens: z.number().int().nonnegative().optional(),
+    output_tokens: z.number().int().nonnegative().optional(),
+  }).optional(),
+}).passthrough();
+
+const outputSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    clusters: {
+      type: "array",
+      maxItems: 50,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          name: { type: "string", minLength: 3, maxLength: 80 },
+          summary: { type: "string", minLength: 1, maxLength: 320 },
+          suggestedAction: {
+            type: "string",
+            enum: ["product", "documentation", "operations", "community", "research"],
+          },
+          memberRunIssueIds: {
+            type: "array",
+            minItems: 2,
+            maxItems: 100,
+            items: { type: "string", format: "uuid" },
+          },
+        },
+        required: ["name", "summary", "suggestedAction", "memberRunIssueIds"],
+      },
+    },
+    unclusteredRunIssueIds: {
+      type: "array",
+      maxItems: 100,
+      items: { type: "string", format: "uuid" },
+    },
+  },
+  required: ["clusters", "unclusteredRunIssueIds"],
+} as const;
 
 export class OpenAIClusterClient implements RepositoryClusterer {
-  readonly modelId:string; private readonly request:typeof fetch; private readonly base:string; private readonly timeoutMs:number; private readonly sleep:(ms:number)=>Promise<void>;
-  constructor(private readonly options:OpenAIClusterClientOptions){if(!options.apiKey.trim())throw new Error("OPENAI_API_KEY_REQUIRED");this.modelId=options.model??"gpt-5-mini";this.request=options.fetch??fetch;this.base=(options.apiBaseUrl??"https://api.openai.com/v1").replace(/\/$/,"");this.timeoutMs=options.timeoutMs??90_000;this.sleep=options.sleep??((ms)=>new Promise((resolve)=>setTimeout(resolve,ms)));}
-  async cluster(items:readonly ClusterEvidenceItem[]):Promise<ClusterProviderResult>{let attempt=0;while(true){attempt++;try{return await this.requestCluster(items);}catch(error){if(!(error instanceof ClusterProviderError))throw error;const max=this.options.maxAttempts??(error.code==="CLUSTER_SCHEMA_INVALID"?2:3);if(!error.retryable||attempt>=max)throw error;await this.sleep(300*2**(attempt-1)+Math.floor(Math.random()*100));}}}
-  private async requestCluster(items:readonly ClusterEvidenceItem[]):Promise<ClusterProviderResult>{const started=performance.now();let response:Response;try{response=await this.request(`${this.base}/responses`,{method:"POST",headers:{Authorization:`Bearer ${this.options.apiKey}`,"Content-Type":"application/json"},body:JSON.stringify({model:this.modelId,store:false,input:[{role:"developer",content:`${REPOSITORY_CLUSTER_INSTRUCTIONS}\n${CLUSTER_OUTPUT_INSTRUCTIONS}`},{role:"user",content:serializeClusterEvidence(items)}],text:{format:{type:"json_schema",name:"repository_issue_clusters",description:"Evidence-linked repository issue clusters with explicit unclustered issues.",strict:true,schema:outputSchema}}}),signal:AbortSignal.timeout(this.timeoutMs)});}catch{throw new ClusterProviderError("CLUSTER_NETWORK_ERROR",true);}
-    if(!response.ok)throw await mapHttpError(response);let raw:unknown;try{raw=await response.json();}catch{throw new ClusterProviderError("CLUSTER_SCHEMA_INVALID",true,response.status);}const envelope=envelopeSchema.safeParse(raw);if(!envelope.success)throw new ClusterProviderError("CLUSTER_SCHEMA_INVALID",true,response.status);if(envelope.data.incomplete_details?.reason==="content_filter")throw new ClusterProviderError("CLUSTER_CONTENT_FILTERED",false,response.status);const content=extract(envelope.data);if(content.refused)throw new ClusterProviderError("CLUSTER_REFUSED",false,response.status);let candidate:unknown;try{candidate=JSON.parse(content.text);}catch{throw new ClusterProviderError("CLUSTER_SCHEMA_INVALID",true,response.status);}let plan;try{plan=validateClusterPlan(candidate,items.map((item)=>item.runIssueId));}catch{throw new ClusterProviderError("CLUSTER_SCHEMA_INVALID",true,response.status);}return{plan,providerRequestId:response.headers.get("x-request-id")??envelope.data.id??null,inputTokens:envelope.data.usage?.input_tokens??null,outputTokens:envelope.data.usage?.output_tokens??null,latencyMs:Math.max(0,Math.round(performance.now()-started)),modelId:this.modelId};}
+  readonly modelId: string;
+  private readonly request: typeof fetch;
+  private readonly base: string;
+  private readonly timeoutMs: number;
+  private readonly sleep: (ms: number) => Promise<void>;
+
+  constructor(private readonly options: OpenAIClusterClientOptions) {
+    if (!options.apiKey.trim()) throw new Error("OPENAI_API_KEY_REQUIRED");
+    this.modelId = options.model ?? "gpt-5-mini";
+    this.request = options.fetch ?? fetch;
+    this.base = (options.apiBaseUrl ?? "https://api.openai.com/v1").replace(/\/$/, "");
+    this.timeoutMs = options.timeoutMs ?? 90_000;
+    this.sleep = options.sleep ??
+      ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  }
+
+  async cluster(
+    items: readonly ClusterEvidenceItem[],
+  ): Promise<ClusterProviderResult> {
+    let attempt = 0;
+    while (true) {
+      attempt += 1;
+      try {
+        return await this.requestCluster(items);
+      } catch (error) {
+        if (!(error instanceof ClusterProviderError)) throw error;
+        const max = this.options.maxAttempts ??
+          (error.code === "CLUSTER_SCHEMA_INVALID" ? 2 : 3);
+        if (!error.retryable || attempt >= max) throw error;
+        await this.sleep(
+          300 * 2 ** (attempt - 1) + Math.floor(Math.random() * 100),
+        );
+      }
+    }
+  }
+
+  private async requestCluster(
+    items: readonly ClusterEvidenceItem[],
+  ): Promise<ClusterProviderResult> {
+    const started = performance.now();
+    let response: Response;
+    try {
+      response = await this.request(`${this.base}/responses`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.options.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: this.modelId,
+          store: false,
+          input: [
+            {
+              role: "developer",
+              content: `${REPOSITORY_CLUSTER_INSTRUCTIONS}\n${CLUSTER_OUTPUT_INSTRUCTIONS}`,
+            },
+            { role: "user", content: serializeClusterEvidence(items) },
+          ],
+          text: {
+            format: {
+              type: "json_schema",
+              name: "repository_issue_clusters",
+              description:
+                "Evidence-linked repository issue clusters with explicit unclustered issues.",
+              strict: true,
+              schema: outputSchema,
+            },
+          },
+        }),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
+    } catch {
+      throw new ClusterProviderError("CLUSTER_NETWORK_ERROR", true, null, {
+        providerRequestId: null,
+        inputTokens: null,
+        outputTokens: null,
+        latencyMs: elapsed(started),
+      });
+    }
+
+    if (!response.ok) throw await mapHttpError(response);
+    let raw: unknown;
+    try {
+      raw = await response.json();
+    } catch {
+      throw new ClusterProviderError(
+        "CLUSTER_SCHEMA_INVALID",
+        true,
+        response.status,
+        responseMetrics(response, undefined, started),
+      );
+    }
+    const envelope = envelopeSchema.safeParse(raw);
+    if (!envelope.success) {
+      throw new ClusterProviderError(
+        "CLUSTER_SCHEMA_INVALID",
+        true,
+        response.status,
+        responseMetrics(response, undefined, started),
+      );
+    }
+    const metrics = responseMetrics(response, envelope.data, started);
+    if (envelope.data.incomplete_details?.reason === "content_filter") {
+      throw new ClusterProviderError(
+        "CLUSTER_CONTENT_FILTERED",
+        false,
+        response.status,
+        metrics,
+      );
+    }
+    const content = extract(envelope.data);
+    if (!content) {
+      throw new ClusterProviderError(
+        "CLUSTER_SCHEMA_INVALID",
+        true,
+        response.status,
+        metrics,
+      );
+    }
+    if (content.refused) {
+      throw new ClusterProviderError(
+        "CLUSTER_REFUSED",
+        false,
+        response.status,
+        metrics,
+      );
+    }
+    let candidate: unknown;
+    try {
+      candidate = JSON.parse(content.text);
+    } catch {
+      throw new ClusterProviderError(
+        "CLUSTER_SCHEMA_INVALID",
+        true,
+        response.status,
+        metrics,
+      );
+    }
+    let plan;
+    try {
+      plan = validateClusterPlan(
+        candidate,
+        items.map((item) => item.runIssueId),
+      );
+    } catch {
+      throw new ClusterProviderError(
+        "CLUSTER_SCHEMA_INVALID",
+        true,
+        response.status,
+        metrics,
+      );
+    }
+    return {
+      plan,
+      providerRequestId: metrics.providerRequestId,
+      inputTokens: metrics.inputTokens,
+      outputTokens: metrics.outputTokens,
+      latencyMs: metrics.latencyMs ?? 0,
+      modelId: this.modelId,
+    };
+  }
 }
-function extract(envelope:z.infer<typeof envelopeSchema>):{text:string;refused:boolean}{if(envelope.output_text)return{text:envelope.output_text,refused:false};for(const item of envelope.output??[])for(const content of item.content??[]){if(content.type==="refusal"||content.refusal)return{text:"",refused:true};if(content.type==="output_text"&&content.text)return{text:content.text,refused:false};}throw new ClusterProviderError("CLUSTER_SCHEMA_INVALID",true);}
-async function mapHttpError(response:Response){if([401,403].includes(response.status))return new ClusterProviderError("CLUSTER_AUTHENTICATION_FAILED",false,response.status);if(response.status===429){const raw=await response.json().catch(()=>null) as {error?:{type?:string;code?:string}}|null;if(raw?.error?.type==="insufficient_quota"||raw?.error?.code==="credit_balance_exhausted")return new ClusterProviderError("CLUSTER_QUOTA_EXHAUSTED",false,429);return new ClusterProviderError("CLUSTER_RATE_LIMITED",true,429);}return new ClusterProviderError("CLUSTER_PROVIDER_ERROR",response.status>=500,response.status);}
+
+function elapsed(started: number): number {
+  return Math.max(0, Math.round(performance.now() - started));
+}
+
+function responseMetrics(
+  response: Response,
+  envelope: z.infer<typeof envelopeSchema> | undefined,
+  started: number,
+): ClusterFailureMetrics {
+  return {
+    providerRequestId:
+      response.headers.get("x-request-id") ?? envelope?.id ?? null,
+    inputTokens: envelope?.usage?.input_tokens ?? null,
+    outputTokens: envelope?.usage?.output_tokens ?? null,
+    latencyMs: elapsed(started),
+  };
+}
+
+function extract(
+  envelope: z.infer<typeof envelopeSchema>,
+): { text: string; refused: boolean } | null {
+  if (envelope.output_text) return { text: envelope.output_text, refused: false };
+  for (const item of envelope.output ?? []) {
+    for (const content of item.content ?? []) {
+      if (content.type === "refusal" || content.refusal) {
+        return { text: "", refused: true };
+      }
+      if (content.type === "output_text" && content.text) {
+        return { text: content.text, refused: false };
+      }
+    }
+  }
+  return null;
+}
+
+async function mapHttpError(response: Response) {
+  if ([401, 403].includes(response.status)) {
+    return new ClusterProviderError(
+      "CLUSTER_AUTHENTICATION_FAILED",
+      false,
+      response.status,
+    );
+  }
+  if (response.status === 429) {
+    const raw = await response.json().catch(() => null) as {
+      error?: { type?: string; code?: string };
+    } | null;
+    if (
+      raw?.error?.type === "insufficient_quota" ||
+      raw?.error?.code === "credit_balance_exhausted"
+    ) {
+      return new ClusterProviderError(
+        "CLUSTER_QUOTA_EXHAUSTED",
+        false,
+        429,
+      );
+    }
+    return new ClusterProviderError("CLUSTER_RATE_LIMITED", true, 429);
+  }
+  return new ClusterProviderError(
+    "CLUSTER_PROVIDER_ERROR",
+    response.status >= 500,
+    response.status,
+  );
+}

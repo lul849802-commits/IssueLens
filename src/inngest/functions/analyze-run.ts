@@ -15,7 +15,7 @@ import type { AnalyzeRunDependencies } from "../dependencies";
 
 type DependencyFactory = () => AnalyzeRunDependencies | Promise<AnalyzeRunDependencies>;
 export const ANALYSIS_BATCH_SIZE = 10;
-export const CLUSTER_SHARD_SIZE = 20;
+export const CLUSTER_SHARD_SIZE = 10;
 export const CLUSTER_SHARD_ATTEMPTS = 2;
 
 export function createAnalyzeRunFunction(
@@ -109,7 +109,7 @@ export function createAnalyzeRunFunction(
                     kind: "failed" as const,
                     errorCode: clusterErrorCode(error),
                     retryable: clusterRetryable(error),
-                    latencyMs: Date.now() - started,
+                    ...clusterFailureMetrics(error, Date.now() - started),
                   };
                 }
               });
@@ -121,13 +121,13 @@ export function createAnalyzeRunFunction(
                   status: outcome.kind === "semantic" ? "succeeded" : "failed",
                   providerRequestId: outcome.kind === "semantic"
                     ? outcome.result.providerRequestId
-                    : null,
+                    : outcome.providerRequestId,
                   inputTokens: outcome.kind === "semantic"
                     ? outcome.result.inputTokens
-                    : null,
+                    : outcome.inputTokens,
                   outputTokens: outcome.kind === "semantic"
                     ? outcome.result.outputTokens
-                    : null,
+                    : outcome.outputTokens,
                   latencyMs: outcome.kind === "semantic"
                     ? outcome.result.latencyMs
                     : outcome.latencyMs,
@@ -234,6 +234,37 @@ function clusterRetryable(error: unknown): boolean {
   return error instanceof Error &&
     "retryable" in error &&
     error.retryable === true;
+}
+
+function clusterFailureMetrics(error: unknown, fallbackLatencyMs: number) {
+  if (error instanceof Error && "metrics" in error) {
+    const metrics = error.metrics as {
+      providerRequestId?: unknown;
+      inputTokens?: unknown;
+      outputTokens?: unknown;
+      latencyMs?: unknown;
+    };
+    return {
+      providerRequestId: typeof metrics.providerRequestId === "string"
+        ? metrics.providerRequestId
+        : null,
+      inputTokens: typeof metrics.inputTokens === "number"
+        ? metrics.inputTokens
+        : null,
+      outputTokens: typeof metrics.outputTokens === "number"
+        ? metrics.outputTokens
+        : null,
+      latencyMs: typeof metrics.latencyMs === "number"
+        ? metrics.latencyMs
+        : fallbackLatencyMs,
+    };
+  }
+  return {
+    providerRequestId: null,
+    inputTokens: null,
+    outputTokens: null,
+    latencyMs: fallbackLatencyMs,
+  };
 }
 
 function workflowErrorCode(error: unknown): string {

@@ -156,7 +156,7 @@ describe("analyzeRun Inngest function", () => {
       analysis: providerResult.analysis,
     }));
     const shards = shardClusterEvidence(items);
-    expect(shards.map((shard) => shard.length)).toEqual([20, 20, 5]);
+    expect(shards.map((shard) => shard.length)).toEqual([10, 10, 10, 10, 5]);
     const combined = combineClusterResults(
       items,
       shards.map((shard, index) => ({
@@ -171,7 +171,7 @@ describe("analyzeRun Inngest function", () => {
       "fixture-model",
     );
     expect(combined.plan.unclusteredRunIssueIds).toHaveLength(45);
-    expect(combined).toMatchObject({ inputTokens: 303, outputTokens: 63, latencyMs: 150 });
+    expect(combined).toMatchObject({ inputTokens: 510, outputTokens: 110, latencyMs: 250 });
   });
 });
 

@@ -1,4 +1,6 @@
-import "dotenv/config";
+import { config } from "dotenv";
+
+config({ path: ".env.local", quiet: true });
 
 import pg from "pg";
 
@@ -76,7 +78,15 @@ try {
               round(avg(latency_ms))::int as avg_latency_ms,
               round(percentile_cont(0.95) within group (order by latency_ms))::int
                 as p95_latency_ms,
-              max(latency_ms)::int as max_latency_ms
+              max(latency_ms)::int as max_latency_ms,
+              coalesce(jsonb_agg(jsonb_build_object(
+                'operationKey', operation_key,
+                'status', status,
+                'errorCode', error_code,
+                'inputTokens', input_tokens,
+                'outputTokens', output_tokens,
+                'latencyMs', latency_ms
+              ) order by operation_key), '[]'::jsonb) as attempts
          from ai_provider_calls
         where run_id = $1 and operation = 'clustering_shard'`,
       [runId],
