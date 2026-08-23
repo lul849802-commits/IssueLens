@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { validateClusterPlan } from "@/domain/clustering/cluster-plan";
+import { normalizeClusterPlan } from "@/domain/clustering/cluster-plan";
 import {
   CLUSTER_OUTPUT_INSTRUCTIONS,
   REPOSITORY_CLUSTER_INSTRUCTIONS,
@@ -252,7 +252,7 @@ export class OpenAIClusterClient implements RepositoryClusterer {
     }
     let plan;
     try {
-      plan = validateClusterPlan(
+      plan = normalizeClusterPlan(
         candidate,
         items.map((item) => item.runIssueId),
       );

@@ -35,3 +35,38 @@ export function validateClusterPlan(candidate: unknown, knownIds: readonly strin
   }
   return plan;
 }
+
+export function normalizeClusterPlan(
+  candidate: unknown,
+  knownIds: readonly string[],
+): RepositoryClusterPlan {
+  const parsed = repositoryClusterPlanSchema.parse(candidate);
+  const known = new Set(knownIds);
+  const assigned = new Set<string>();
+  const clusters: RepositoryClusterPlan["clusters"] = [];
+
+  for (const cluster of parsed.clusters) {
+    const members = [...new Set(cluster.memberRunIssueIds)]
+      .filter((id) => known.has(id) && !assigned.has(id));
+    if (members.length < 2) continue;
+    members.forEach((id) => assigned.add(id));
+    clusters.push({ ...cluster, memberRunIssueIds: members });
+  }
+
+  const unclusteredRunIssueIds: string[] = [];
+  for (const id of parsed.unclusteredRunIssueIds) {
+    if (!known.has(id) || assigned.has(id)) continue;
+    assigned.add(id);
+    unclusteredRunIssueIds.push(id);
+  }
+  for (const id of knownIds) {
+    if (assigned.has(id)) continue;
+    assigned.add(id);
+    unclusteredRunIssueIds.push(id);
+  }
+
+  return validateClusterPlan(
+    { clusters, unclusteredRunIssueIds },
+    knownIds,
+  );
+}
