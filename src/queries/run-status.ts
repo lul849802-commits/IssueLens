@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import type { PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import type { RunStatus } from "@/domain/runs/run-state";
 import type { IssueLensDatabase } from "@/db/database";
-import { analysisRuns, repositories } from "@/db/schema";
+import { analysisRuns, repositories, runIssues } from "@/db/schema";
 
 export interface RunStatusView {
   id: string;
@@ -23,7 +23,7 @@ export async function getRunStatus<TQueryResult extends PgQueryResultHKT>(
   db: IssueLensDatabase<TQueryResult>,
   runId: string,
 ): Promise<RunStatusView | null> {
-  const [row] = await db
+  const [runRows, itemRows] = await Promise.all([db
     .select({
       id: analysisRuns.id,
       owner: repositories.owner,
@@ -37,9 +37,19 @@ export async function getRunStatus<TQueryResult extends PgQueryResultHKT>(
     .from(analysisRuns)
     .innerJoin(repositories, eq(analysisRuns.repositoryId, repositories.id))
     .where(eq(analysisRuns.id, runId))
-    .limit(1);
+    .limit(1), db
+      .select({ status: runIssues.status, value: count() })
+      .from(runIssues)
+      .where(eq(runIssues.runId, runId))
+      .groupBy(runIssues.status),
+  ]);
+  const [row] = runRows;
 
   if (!row) return null;
+  const counts = new Map(itemRows.map((item) => [item.status, item.value]));
+  const succeeded = (counts.get("succeeded") ?? 0) +
+    (counts.get("skipped_cached") ?? 0);
+  const failed = counts.get("failed") ?? 0;
 
   return {
     id: row.id,
@@ -47,9 +57,13 @@ export async function getRunStatus<TQueryResult extends PgQueryResultHKT>(
     status: row.status,
     progress: {
       total: row.total,
-      succeeded: row.succeeded,
-      failed: row.failed,
-      pending: Math.max(0, row.total - row.succeeded - row.failed),
+      succeeded: row.status === "complete" || row.status === "partial"
+        ? row.succeeded
+        : succeeded,
+      failed: row.status === "complete" || row.status === "partial"
+        ? row.failed
+        : failed,
+      pending: Math.max(0, row.total - succeeded - failed),
     },
     isTerminal: ["complete", "partial", "failed"].includes(row.status),
     updatedAt: row.updatedAt,

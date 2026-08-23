@@ -10,7 +10,7 @@ import {
 import type { PgQueryResultHKT } from "drizzle-orm/pg-core";
 
 import type { IssueAnalysis } from "@/domain/analysis/analysis";
-import type { ClusterEvidenceItem, ClusterProviderResult } from "@/adapters/ai/cluster-port";
+import type { ClusterCallRecord, ClusterEvidenceItem, ClusterProviderResult } from "@/adapters/ai/cluster-port";
 import type { RepositoryRef } from "@/domain/repository/repository";
 import type {
   AnalysisWorkItem,
@@ -25,6 +25,7 @@ import type {
 import type { IssueLensDatabase } from "../database";
 import {
   analysisRuns,
+  aiProviderCalls,
   clusterMembers,
   clusters,
   issueAnalyses,
@@ -278,6 +279,35 @@ export class DrizzleDurableAnalysisRepository<TQueryResult extends PgQueryResult
         eq(runIssues.id, runIssueId),
         notInArray(runIssues.status, [...terminalItemStatuses]),
       ));
+  }
+
+  async recordClusterCall(runId: string, record: ClusterCallRecord): Promise<void> {
+    const values = {
+      runId,
+      operationKey: record.operationKey,
+      operation: "clustering_shard",
+      status: record.status,
+      modelId: record.modelId,
+      itemCount: record.itemCount,
+      providerRequestId: record.providerRequestId,
+      inputTokens: record.inputTokens,
+      outputTokens: record.outputTokens,
+      latencyMs: record.latencyMs,
+      errorCode: record.errorCode,
+      updatedAt: new Date(),
+    } as const;
+    await this.db.insert(aiProviderCalls).values(values).onConflictDoUpdate({
+      target: [aiProviderCalls.runId, aiProviderCalls.operationKey],
+      set: {
+        status: values.status,
+        providerRequestId: values.providerRequestId,
+        inputTokens: values.inputTokens,
+        outputTokens: values.outputTokens,
+        latencyMs: values.latencyMs,
+        errorCode: values.errorCode,
+        updatedAt: values.updatedAt,
+      },
+    });
   }
 
   async aggregate(runId: string): Promise<VerticalSliceCounts> {

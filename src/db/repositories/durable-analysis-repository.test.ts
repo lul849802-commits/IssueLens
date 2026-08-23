@@ -7,10 +7,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AnalysisProviderError } from "@/adapters/ai/openai-analysis-client";
 import { analyzeDurableIssue } from "@/services/analysis/durable-analysis";
 import { ANALYSIS_VERSION } from "@/services/analysis/prompt";
+import { getRunStatus } from "@/queries/run-status";
 
 import { DrizzleDurableAnalysisRepository } from "./durable-analysis-repository";
 import {
   analysisRuns,
+  aiProviderCalls,
   clusterMembers,
   clusters,
   issueAnalyses,
@@ -88,6 +90,10 @@ describe("DrizzleDurableAnalysisRepository", () => {
     );
     expect(analyze).toHaveBeenCalledOnce();
     expect(await db.select().from(issueAnalyses)).toHaveLength(1);
+    expect(await getRunStatus(db, requested.runId)).toMatchObject({
+      status: "analyzing",
+      progress: { total: 3, succeeded: 1, failed: 0, pending: 2 },
+    });
 
     const retryingAnalyze = vi.fn()
       .mockRejectedValueOnce(new AnalysisProviderError("ANALYSIS_RATE_LIMITED", true, 429))
@@ -110,6 +116,34 @@ describe("DrizzleDurableAnalysisRepository", () => {
     await store.recordFailure(firstPrepare[2]!.runIssueId, "ANALYSIS_REFUSED");
     const clusterItems = await store.prepareClustering(requested.runId);
     expect(clusterItems).toHaveLength(2);
+    await store.recordClusterCall(requested.runId, {
+      operationKey: "cluster-shard-01-attempt-01",
+      itemCount: clusterItems.length,
+      modelId: "fixture-model",
+      status: "succeeded",
+      providerRequestId: "req_cluster",
+      inputTokens: 80,
+      outputTokens: 30,
+      latencyMs: 12,
+      errorCode: null,
+    });
+    await store.recordClusterCall(requested.runId, {
+      operationKey: "cluster-shard-01-attempt-01",
+      itemCount: clusterItems.length,
+      modelId: "fixture-model",
+      status: "succeeded",
+      providerRequestId: "req_cluster_replayed",
+      inputTokens: 80,
+      outputTokens: 30,
+      latencyMs: 12,
+      errorCode: null,
+    });
+    expect(await db.select().from(aiProviderCalls)).toMatchObject([{
+      operationKey: "cluster-shard-01-attempt-01",
+      providerRequestId: "req_cluster_replayed",
+      inputTokens: 80,
+      outputTokens: 30,
+    }]);
     const clustered = await store.persistSemanticClusters(requested.runId, {
       plan: { clusters: [{
         name: "共同功能异常", summary: "两条成功分析描述同类异常。", suggestedAction: "product",

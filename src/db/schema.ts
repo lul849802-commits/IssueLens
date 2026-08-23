@@ -44,6 +44,10 @@ export const reproducibilityEnum = pgEnum(
 );
 export const suggestedActionEnum = pgEnum("suggested_action", suggestedActions);
 export const membershipSourceEnum = pgEnum("membership_source", ["model", "manual"]);
+export const aiProviderCallStatusEnum = pgEnum("ai_provider_call_status", [
+  "succeeded",
+  "failed",
+]);
 
 export interface AnalysisScope {
   limit: number;
@@ -260,6 +264,48 @@ export const clusters = pgTable(
   ],
 );
 
+export const aiProviderCalls = pgTable(
+  "ai_provider_calls",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => analysisRuns.id, { onDelete: "cascade" }),
+    operationKey: text("operation_key").notNull(),
+    operation: text("operation").notNull(),
+    status: aiProviderCallStatusEnum("status").notNull(),
+    modelId: text("model_id").notNull(),
+    itemCount: integer("item_count").notNull(),
+    providerRequestId: text("provider_request_id"),
+    inputTokens: integer("input_tokens"),
+    outputTokens: integer("output_tokens"),
+    latencyMs: integer("latency_ms"),
+    errorCode: text("error_code"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("ai_provider_calls_run_operation_unique").on(
+      table.runId,
+      table.operationKey,
+    ),
+    check("ai_provider_calls_item_count_check", sql`${table.itemCount} >= 0`),
+    check(
+      "ai_provider_calls_input_tokens_check",
+      sql`${table.inputTokens} is null or ${table.inputTokens} >= 0`,
+    ),
+    check(
+      "ai_provider_calls_output_tokens_check",
+      sql`${table.outputTokens} is null or ${table.outputTokens} >= 0`,
+    ),
+    check(
+      "ai_provider_calls_latency_check",
+      sql`${table.latencyMs} is null or ${table.latencyMs} >= 0`,
+    ),
+    index("ai_provider_calls_run_operation_idx").on(table.runId, table.operation),
+  ],
+);
+
 export const analysisCorrections = pgTable(
   "analysis_corrections",
   {
@@ -310,6 +356,7 @@ export const schema = {
   issues,
   runIssues,
   issueAnalyses,
+  aiProviderCalls,
   clusters,
   analysisCorrections,
   clusterMembers,

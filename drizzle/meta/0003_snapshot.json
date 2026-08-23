@@ -1,0 +1,1369 @@
+{
+  "id": "3bb423ad-a453-4377-9c99-521b9990b8db",
+  "prevId": "e8fe88b5-5676-4e6c-9b49-ab4a311e35c5",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.ai_provider_calls": {
+      "name": "ai_provider_calls",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_key": {
+          "name": "operation_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation": {
+          "name": "operation",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "ai_provider_call_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_count": {
+          "name": "item_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_request_id": {
+          "name": "provider_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "input_tokens": {
+          "name": "input_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output_tokens": {
+          "name": "output_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latency_ms": {
+          "name": "latency_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ai_provider_calls_run_operation_idx": {
+          "name": "ai_provider_calls_run_operation_idx",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "operation",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ai_provider_calls_run_id_analysis_runs_id_fk": {
+          "name": "ai_provider_calls_run_id_analysis_runs_id_fk",
+          "tableFrom": "ai_provider_calls",
+          "tableTo": "analysis_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "ai_provider_calls_run_operation_unique": {
+          "name": "ai_provider_calls_run_operation_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "run_id",
+            "operation_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "ai_provider_calls_item_count_check": {
+          "name": "ai_provider_calls_item_count_check",
+          "value": "\"ai_provider_calls\".\"item_count\" >= 0"
+        },
+        "ai_provider_calls_input_tokens_check": {
+          "name": "ai_provider_calls_input_tokens_check",
+          "value": "\"ai_provider_calls\".\"input_tokens\" is null or \"ai_provider_calls\".\"input_tokens\" >= 0"
+        },
+        "ai_provider_calls_output_tokens_check": {
+          "name": "ai_provider_calls_output_tokens_check",
+          "value": "\"ai_provider_calls\".\"output_tokens\" is null or \"ai_provider_calls\".\"output_tokens\" >= 0"
+        },
+        "ai_provider_calls_latency_check": {
+          "name": "ai_provider_calls_latency_check",
+          "value": "\"ai_provider_calls\".\"latency_ms\" is null or \"ai_provider_calls\".\"latency_ms\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.analysis_corrections": {
+      "name": "analysis_corrections",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "issue_analysis_id": {
+          "name": "issue_analysis_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "issue_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "severity": {
+          "name": "severity",
+          "type": "issue_severity",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "product_area": {
+          "name": "product_area",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "target_cluster_id": {
+          "name": "target_cluster_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "corrected_at": {
+          "name": "corrected_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "analysis_corrections_analysis_time_idx": {
+          "name": "analysis_corrections_analysis_time_idx",
+          "columns": [
+            {
+              "expression": "issue_analysis_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "corrected_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "analysis_corrections_issue_analysis_id_issue_analyses_id_fk": {
+          "name": "analysis_corrections_issue_analysis_id_issue_analyses_id_fk",
+          "tableFrom": "analysis_corrections",
+          "tableTo": "issue_analyses",
+          "columnsFrom": [
+            "issue_analysis_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "analysis_corrections_target_cluster_id_clusters_id_fk": {
+          "name": "analysis_corrections_target_cluster_id_clusters_id_fk",
+          "tableFrom": "analysis_corrections",
+          "tableTo": "clusters",
+          "columnsFrom": [
+            "target_cluster_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "analysis_corrections_not_empty_check": {
+          "name": "analysis_corrections_not_empty_check",
+          "value": "\"analysis_corrections\".\"category\" is not null or \"analysis_corrections\".\"severity\" is not null or \"analysis_corrections\".\"product_area\" is not null or \"analysis_corrections\".\"target_cluster_id\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.analysis_runs": {
+      "name": "analysis_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "repository_id": {
+          "name": "repository_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "run_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "creator_token_hash": {
+          "name": "creator_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_count": {
+          "name": "total_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "succeeded_count": {
+          "name": "succeeded_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "failed_count": {
+          "name": "failed_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "analysis_version": {
+          "name": "analysis_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "workflow_event_id": {
+          "name": "workflow_event_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "workflow_run_id": {
+          "name": "workflow_run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_public_message": {
+          "name": "error_public_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "analysis_runs_repository_created_idx": {
+          "name": "analysis_runs_repository_created_idx",
+          "columns": [
+            {
+              "expression": "repository_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "analysis_runs_repository_id_repositories_id_fk": {
+          "name": "analysis_runs_repository_id_repositories_id_fk",
+          "tableFrom": "analysis_runs",
+          "tableTo": "repositories",
+          "columnsFrom": [
+            "repository_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "analysis_runs_workflow_event_unique": {
+          "name": "analysis_runs_workflow_event_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "workflow_event_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "analysis_runs_total_count_check": {
+          "name": "analysis_runs_total_count_check",
+          "value": "\"analysis_runs\".\"total_count\" between 0 and 100"
+        },
+        "analysis_runs_succeeded_count_check": {
+          "name": "analysis_runs_succeeded_count_check",
+          "value": "\"analysis_runs\".\"succeeded_count\" >= 0"
+        },
+        "analysis_runs_failed_count_check": {
+          "name": "analysis_runs_failed_count_check",
+          "value": "\"analysis_runs\".\"failed_count\" >= 0"
+        },
+        "analysis_runs_completed_counts_check": {
+          "name": "analysis_runs_completed_counts_check",
+          "value": "\"analysis_runs\".\"succeeded_count\" + \"analysis_runs\".\"failed_count\" <= \"analysis_runs\".\"total_count\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cluster_members": {
+      "name": "cluster_members",
+      "schema": "",
+      "columns": {
+        "cluster_id": {
+          "name": "cluster_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "run_issue_id": {
+          "name": "run_issue_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "membership_source": {
+          "name": "membership_source",
+          "type": "membership_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "cluster_members_cluster_id_clusters_id_fk": {
+          "name": "cluster_members_cluster_id_clusters_id_fk",
+          "tableFrom": "cluster_members",
+          "tableTo": "clusters",
+          "columnsFrom": [
+            "cluster_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "cluster_members_run_issue_id_run_issues_id_fk": {
+          "name": "cluster_members_run_issue_id_run_issues_id_fk",
+          "tableFrom": "cluster_members",
+          "tableTo": "run_issues",
+          "columnsFrom": [
+            "run_issue_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "cluster_members_cluster_run_issue_pk": {
+          "name": "cluster_members_cluster_run_issue_pk",
+          "columns": [
+            "cluster_id",
+            "run_issue_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.clusters": {
+      "name": "clusters",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "suggested_action": {
+          "name": "suggested_action",
+          "type": "suggested_action",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "priority_score": {
+          "name": "priority_score",
+          "type": "numeric(5, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "priority_signals": {
+          "name": "priority_signals",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "is_provisional": {
+          "name": "is_provisional",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "contains_manual_correction": {
+          "name": "contains_manual_correction",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "clusters_run_priority_idx": {
+          "name": "clusters_run_priority_idx",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "priority_score",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "clusters_run_id_analysis_runs_id_fk": {
+          "name": "clusters_run_id_analysis_runs_id_fk",
+          "tableFrom": "clusters",
+          "tableTo": "analysis_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "clusters_priority_score_check": {
+          "name": "clusters_priority_score_check",
+          "value": "\"clusters\".\"priority_score\" is null or \"clusters\".\"priority_score\" between 0 and 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.issue_analyses": {
+      "name": "issue_analyses",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "run_issue_id": {
+          "name": "run_issue_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "analysis_version": {
+          "name": "analysis_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "prompt_version": {
+          "name": "prompt_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "issue_category",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "product_area": {
+          "name": "product_area",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_scenario": {
+          "name": "user_scenario",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sentiment": {
+          "name": "sentiment",
+          "type": "issue_sentiment",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "severity": {
+          "name": "severity",
+          "type": "issue_severity",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reproducibility": {
+          "name": "reproducibility",
+          "type": "issue_reproducibility",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "suggested_action": {
+          "name": "suggested_action",
+          "type": "suggested_action",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rationale": {
+          "name": "rationale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confidence": {
+          "name": "confidence",
+          "type": "numeric(4, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_request_id": {
+          "name": "provider_request_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "input_tokens": {
+          "name": "input_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output_tokens": {
+          "name": "output_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "latency_ms": {
+          "name": "latency_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "input_truncated": {
+          "name": "input_truncated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "issue_analyses_run_issue_id_run_issues_id_fk": {
+          "name": "issue_analyses_run_issue_id_run_issues_id_fk",
+          "tableFrom": "issue_analyses",
+          "tableTo": "run_issues",
+          "columnsFrom": [
+            "run_issue_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "issue_analyses_cache_unique": {
+          "name": "issue_analyses_cache_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "run_issue_id",
+            "content_hash",
+            "analysis_version"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "issue_analyses_confidence_check": {
+          "name": "issue_analyses_confidence_check",
+          "value": "\"issue_analyses\".\"confidence\" between 0 and 1"
+        },
+        "issue_analyses_input_tokens_check": {
+          "name": "issue_analyses_input_tokens_check",
+          "value": "\"issue_analyses\".\"input_tokens\" is null or \"issue_analyses\".\"input_tokens\" >= 0"
+        },
+        "issue_analyses_output_tokens_check": {
+          "name": "issue_analyses_output_tokens_check",
+          "value": "\"issue_analyses\".\"output_tokens\" is null or \"issue_analyses\".\"output_tokens\" >= 0"
+        },
+        "issue_analyses_latency_check": {
+          "name": "issue_analyses_latency_check",
+          "value": "\"issue_analyses\".\"latency_ms\" is null or \"issue_analyses\".\"latency_ms\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.issues": {
+      "name": "issues",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "repository_id": {
+          "name": "repository_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "github_issue_id": {
+          "name": "github_issue_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_number": {
+          "name": "issue_number",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "state": {
+          "name": "state",
+          "type": "issue_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "labels": {
+          "name": "labels",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "comments_count": {
+          "name": "comments_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "author_login": {
+          "name": "author_login",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "html_url": {
+          "name": "html_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "github_created_at": {
+          "name": "github_created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "github_updated_at": {
+          "name": "github_updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "current_content_hash": {
+          "name": "current_content_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "imported_at": {
+          "name": "imported_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "issues_repository_created_idx": {
+          "name": "issues_repository_created_idx",
+          "columns": [
+            {
+              "expression": "repository_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "github_created_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "issues_repository_id_repositories_id_fk": {
+          "name": "issues_repository_id_repositories_id_fk",
+          "tableFrom": "issues",
+          "tableTo": "repositories",
+          "columnsFrom": [
+            "repository_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "issues_repository_github_id_unique": {
+          "name": "issues_repository_github_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "repository_id",
+            "github_issue_id"
+          ]
+        },
+        "issues_repository_number_unique": {
+          "name": "issues_repository_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "repository_id",
+            "issue_number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "issues_number_positive_check": {
+          "name": "issues_number_positive_check",
+          "value": "\"issues\".\"issue_number\" > 0"
+        },
+        "issues_comments_nonnegative_check": {
+          "name": "issues_comments_nonnegative_check",
+          "value": "\"issues\".\"comments_count\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.repositories": {
+      "name": "repositories",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "owner": {
+          "name": "owner",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "github_repository_id": {
+          "name": "github_repository_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "html_url": {
+          "name": "html_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "default_branch": {
+          "name": "default_branch",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "repositories_owner_name_unique": {
+          "name": "repositories_owner_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "owner",
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.run_issues": {
+      "name": "run_issues",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "run_id": {
+          "name": "run_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issue_id": {
+          "name": "issue_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_hash": {
+          "name": "content_hash",
+          "type": "char(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "item_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "attempt_count": {
+          "name": "attempt_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "error_code": {
+          "name": "error_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "error_public_message": {
+          "name": "error_public_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "run_issues_run_status_idx": {
+          "name": "run_issues_run_status_idx",
+          "columns": [
+            {
+              "expression": "run_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "run_issues_run_id_analysis_runs_id_fk": {
+          "name": "run_issues_run_id_analysis_runs_id_fk",
+          "tableFrom": "run_issues",
+          "tableTo": "analysis_runs",
+          "columnsFrom": [
+            "run_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "run_issues_issue_id_issues_id_fk": {
+          "name": "run_issues_issue_id_issues_id_fk",
+          "tableFrom": "run_issues",
+          "tableTo": "issues",
+          "columnsFrom": [
+            "issue_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "run_issues_run_issue_unique": {
+          "name": "run_issues_run_issue_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "run_id",
+            "issue_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "run_issues_attempt_nonnegative_check": {
+          "name": "run_issues_attempt_nonnegative_check",
+          "value": "\"run_issues\".\"attempt_count\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.ai_provider_call_status": {
+      "name": "ai_provider_call_status",
+      "schema": "public",
+      "values": [
+        "succeeded",
+        "failed"
+      ]
+    },
+    "public.issue_category": {
+      "name": "issue_category",
+      "schema": "public",
+      "values": [
+        "bug",
+        "feature_request",
+        "documentation",
+        "usage_question",
+        "performance",
+        "other",
+        "unknown"
+      ]
+    },
+    "public.issue_state": {
+      "name": "issue_state",
+      "schema": "public",
+      "values": [
+        "open",
+        "closed"
+      ]
+    },
+    "public.item_status": {
+      "name": "item_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "processing",
+        "succeeded",
+        "failed",
+        "skipped_cached"
+      ]
+    },
+    "public.membership_source": {
+      "name": "membership_source",
+      "schema": "public",
+      "values": [
+        "model",
+        "manual"
+      ]
+    },
+    "public.issue_reproducibility": {
+      "name": "issue_reproducibility",
+      "schema": "public",
+      "values": [
+        "clear",
+        "partial",
+        "insufficient",
+        "not_applicable"
+      ]
+    },
+    "public.run_status": {
+      "name": "run_status",
+      "schema": "public",
+      "values": [
+        "queued",
+        "fetching",
+        "analyzing",
+        "clustering",
+        "aggregating",
+        "complete",
+        "partial",
+        "failed"
+      ]
+    },
+    "public.issue_sentiment": {
+      "name": "issue_sentiment",
+      "schema": "public",
+      "values": [
+        "positive",
+        "neutral",
+        "negative",
+        "unknown"
+      ]
+    },
+    "public.issue_severity": {
+      "name": "issue_severity",
+      "schema": "public",
+      "values": [
+        "low",
+        "medium",
+        "high",
+        "critical",
+        "unknown"
+      ]
+    },
+    "public.suggested_action": {
+      "name": "suggested_action",
+      "schema": "public",
+      "values": [
+        "product",
+        "documentation",
+        "operations",
+        "community",
+        "research"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

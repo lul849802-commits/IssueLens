@@ -30,6 +30,8 @@ export function createAnalyzeRunDependencies() {
     clusterer: new OpenAIClusterClient({
       apiKey: env.OPENAI_API_KEY,
       model: env.OPENAI_MODEL || "gpt-5-mini",
+      maxAttempts: 1,
+      timeoutMs: 60_000,
     }),
     fetchAndPersist: async (repositorySlug: string, limit: number) => {
       const imported = await importGitHubIssues(

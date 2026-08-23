@@ -15,7 +15,7 @@ if (!process.env.DATABASE_URL) {
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
 try {
-  const [runResult, itemResult, metricResult, clusterResult] = await Promise.all([
+  const [runResult, itemResult, metricResult, clusterResult, providerCallResult] = await Promise.all([
     pool.query(
       `select id, status, total_count, succeeded_count, failed_count,
               model_id, created_at, started_at, completed_at, updated_at
@@ -63,6 +63,24 @@ try {
         where c.run_id = $1`,
       [runId],
     ),
+    pool.query(
+      `select count(*)::int as calls,
+              count(*) filter (where status = 'succeeded')::int as succeeded_calls,
+              count(*) filter (where status = 'failed')::int as failed_calls,
+              coalesce(sum(input_tokens), 0)::bigint as input_tokens,
+              coalesce(sum(output_tokens), 0)::bigint as output_tokens,
+              count(*) filter (
+                where status = 'failed'
+                  and (input_tokens is null or output_tokens is null)
+              )::int as failed_calls_with_unknown_tokens,
+              round(avg(latency_ms))::int as avg_latency_ms,
+              round(percentile_cont(0.95) within group (order by latency_ms))::int
+                as p95_latency_ms,
+              max(latency_ms)::int as max_latency_ms
+         from ai_provider_calls
+        where run_id = $1 and operation = 'clustering_shard'`,
+      [runId],
+    ),
   ]);
 
   console.log(
@@ -72,6 +90,7 @@ try {
         items: itemResult.rows,
         analysis: metricResult.rows[0],
         clustering: clusterResult.rows[0],
+        clusteringProviderCalls: providerCallResult.rows[0],
       },
       null,
       2,

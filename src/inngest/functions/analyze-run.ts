@@ -1,15 +1,22 @@
-import { NonRetriableError, type Inngest } from "inngest";
+import type { Inngest } from "inngest";
 
 import {
   analyzeDurableIssue,
-  durableErrorCode,
   DurableAnalysisError,
 } from "@/services/analysis/durable-analysis";
+import type {
+  ClusterEvidenceItem,
+  ClusterProviderResult,
+} from "@/adapters/ai/cluster-port";
+import { validateClusterPlan } from "@/domain/clustering/cluster-plan";
 
 import { inngest, runRequested } from "../client";
 import type { AnalyzeRunDependencies } from "../dependencies";
 
 type DependencyFactory = () => AnalyzeRunDependencies | Promise<AnalyzeRunDependencies>;
+export const ANALYSIS_BATCH_SIZE = 10;
+export const CLUSTER_SHARD_SIZE = 20;
+export const CLUSTER_SHARD_ATTEMPTS = 2;
 
 export function createAnalyzeRunFunction(
   client: Inngest,
@@ -41,11 +48,12 @@ export function createAnalyzeRunFunction(
           deps.store.prepareAnalysis({ runId, limit, modelId }));
 
         const outcomes = [];
-        for (let offset = 0; offset < items.length; offset += 5) {
-          const chunk = items.slice(offset, offset + 5);
-          const chunkOutcomes = await Promise.all(chunk.map(async (item) => {
-            try {
-              return await step.run(`analyze-issue-${item.runIssueId}`, async () => {
+        for (let offset = 0; offset < items.length; offset += ANALYSIS_BATCH_SIZE) {
+          const chunk = items.slice(offset, offset + ANALYSIS_BATCH_SIZE);
+          const chunkNumber = Math.floor(offset / ANALYSIS_BATCH_SIZE) + 1;
+          const chunkOutcomes = await step.run(
+            `analyze-batch-${String(chunkNumber).padStart(2, "0")}`,
+            () => Promise.all(chunk.map(async (item) => {
                 try {
                   return await analyzeDurableIssue(
                     deps.store,
@@ -54,18 +62,17 @@ export function createAnalyzeRunFunction(
                   );
                 } catch (error) {
                   if (error instanceof DurableAnalysisError && !error.retryable) {
-                    throw new NonRetriableError(error.code);
+                    await deps.store.recordFailure(item.runIssueId, error.code);
+                    return {
+                      status: "failed" as const,
+                      runIssueId: item.runIssueId,
+                      code: error.code,
+                    };
                   }
                   throw error;
                 }
-              });
-            } catch (error) {
-              const code = durableErrorCode(error);
-              await step.run(`record-failure-${item.runIssueId}`, () =>
-                deps.store.recordFailure(item.runIssueId, code));
-              return { status: "failed" as const, runIssueId: item.runIssueId, code };
-            }
-          }));
+            })),
+          );
           outcomes.push(...chunkOutcomes);
         }
 
@@ -78,21 +85,91 @@ export function createAnalyzeRunFunction(
             providerRequestId: null, inputTokens: 0, outputTokens: 0, latencyMs: 0, modelId,
           }));
         } else {
-          const outcome = await step.run("cluster-repository", async () => {
-            try {
-              return { kind: "semantic" as const, result: await deps.clusterer.cluster(clusterItems) };
-            } catch (error) {
-              return { kind: "fallback" as const, errorCode: clusterErrorCode(error) };
+          const semanticResults: ClusterProviderResult[] = [];
+          const unclusteredFromFailedShards: string[] = [];
+          let failedShards = 0;
+          const shards = shardClusterEvidence(clusterItems);
+          for (let shardIndex = 0; shardIndex < shards.length; shardIndex += 1) {
+            const shard = shards[shardIndex]!;
+            const shardKey =
+              `cluster-shard-${String(shardIndex + 1).padStart(2, "0")}`;
+            let completed = false;
+            for (let attempt = 1; attempt <= CLUSTER_SHARD_ATTEMPTS; attempt += 1) {
+              const operationKey =
+                `${shardKey}-attempt-${String(attempt).padStart(2, "0")}`;
+              const outcome = await step.run(operationKey, async () => {
+                const started = Date.now();
+                try {
+                  return {
+                    kind: "semantic" as const,
+                    result: await deps.clusterer.cluster(shard),
+                  };
+                } catch (error) {
+                  return {
+                    kind: "failed" as const,
+                    errorCode: clusterErrorCode(error),
+                    retryable: clusterRetryable(error),
+                    latencyMs: Date.now() - started,
+                  };
+                }
+              });
+              await step.run(`record-${operationKey}`, () =>
+                deps.store.recordClusterCall(runId, {
+                  operationKey,
+                  itemCount: shard.length,
+                  modelId,
+                  status: outcome.kind === "semantic" ? "succeeded" : "failed",
+                  providerRequestId: outcome.kind === "semantic"
+                    ? outcome.result.providerRequestId
+                    : null,
+                  inputTokens: outcome.kind === "semantic"
+                    ? outcome.result.inputTokens
+                    : null,
+                  outputTokens: outcome.kind === "semantic"
+                    ? outcome.result.outputTokens
+                    : null,
+                  latencyMs: outcome.kind === "semantic"
+                    ? outcome.result.latencyMs
+                    : outcome.latencyMs,
+                  errorCode: outcome.kind === "semantic" ? null : outcome.errorCode,
+                }));
+              if (outcome.kind === "semantic") {
+                semanticResults.push(outcome.result);
+                completed = true;
+                break;
+              }
+              if (!outcome.retryable) break;
             }
-          });
-          if (outcome.kind === "semantic") {
+            if (!completed) {
+              failedShards += 1;
+              unclusteredFromFailedShards.push(
+                ...shard.map((item) => item.runIssueId),
+              );
+            }
+          }
+          if (semanticResults.length > 0) {
+            const combined = combineClusterResults(
+              clusterItems,
+              semanticResults,
+              unclusteredFromFailedShards,
+              modelId,
+            );
             clusterResult = await step.run("persist-semantic-clusters", () =>
-              deps.store.persistSemanticClusters(runId, outcome.result));
+              deps.store.persistSemanticClusters(runId, combined));
+            clusterResult = {
+              ...clusterResult,
+              shards: shards.length,
+              semanticShards: semanticResults.length,
+              failedShards,
+            };
           } else {
             clusterResult = {
               ...await step.run("fallback-clusters", () => deps.store.buildClusters(runId)),
               method: "fallback" as const,
-              errorCode: outcome.errorCode,
+              errorCode: "CLUSTER_ALL_SHARDS_FAILED",
+              shards: shards.length,
+              semanticShards: 0,
+              failedShards,
             };
           }
         }
@@ -109,9 +186,54 @@ export function createAnalyzeRunFunction(
   );
 }
 
+export function shardClusterEvidence(
+  items: readonly ClusterEvidenceItem[],
+): ClusterEvidenceItem[][] {
+  const shards: ClusterEvidenceItem[][] = [];
+  for (let offset = 0; offset < items.length; offset += CLUSTER_SHARD_SIZE) {
+    shards.push(items.slice(offset, offset + CLUSTER_SHARD_SIZE));
+  }
+  return shards;
+}
+
+export function combineClusterResults(
+  items: readonly ClusterEvidenceItem[],
+  results: readonly ClusterProviderResult[],
+  additionalUnclustered: readonly string[],
+  modelId: string,
+): ClusterProviderResult {
+  const plan = validateClusterPlan({
+    clusters: results.flatMap((result) => result.plan.clusters),
+    unclusteredRunIssueIds: [
+      ...results.flatMap((result) => result.plan.unclusteredRunIssueIds),
+      ...additionalUnclustered,
+    ],
+  }, items.map((item) => item.runIssueId));
+  return {
+    plan,
+    providerRequestId: null,
+    inputTokens: results.reduce(
+      (sum, result) => sum + (result.inputTokens ?? 0),
+      0,
+    ),
+    outputTokens: results.reduce(
+      (sum, result) => sum + (result.outputTokens ?? 0),
+      0,
+    ),
+    latencyMs: results.reduce((sum, result) => sum + result.latencyMs, 0),
+    modelId,
+  };
+}
+
 function clusterErrorCode(error: unknown): string {
   if (error instanceof Error && error.message.startsWith("CLUSTER_")) return error.message;
   return "CLUSTER_SEMANTIC_FAILED";
+}
+
+function clusterRetryable(error: unknown): boolean {
+  return error instanceof Error &&
+    "retryable" in error &&
+    error.retryable === true;
 }
 
 function workflowErrorCode(error: unknown): string {

@@ -41,6 +41,7 @@ describe("IssueLens PostgreSQL fact source", () => {
     );
 
     expect(result.rows.map((row) => row.table_name)).toEqual([
+      "ai_provider_calls",
       "analysis_corrections",
       "analysis_runs",
       "cluster_members",
