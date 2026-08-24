@@ -1,0 +1,276 @@
+.page {
+  background:
+    radial-gradient(circle at 76% 16%, rgba(18, 108, 84, 0.075), transparent 24rem),
+    linear-gradient(rgba(23, 34, 31, 0.024) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 34, 31, 0.024) 1px, transparent 1px),
+    var(--canvas);
+  background-size: auto, 44px 44px, 44px 44px, auto;
+  min-height: 100vh;
+}
+
+.header {
+  background: color-mix(in srgb, var(--canvas) 88%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 84%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.headerInner {
+  align-items: center;
+  display: flex;
+  min-height: 76px;
+}
+
+.brand {
+  font-size: 21px;
+  font-weight: 850;
+  letter-spacing: -0.055em;
+  text-decoration: none;
+}
+
+.headerNote {
+  color: var(--muted);
+  font-size: 13px;
+  margin-left: auto;
+}
+
+.headerNote span {
+  color: var(--accent);
+  display: inline-block;
+  margin-inline: 5px;
+}
+
+.content {
+  padding-block: 72px 96px;
+}
+
+.card {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(20, 43, 35, 0.1);
+  margin-inline: auto;
+  max-width: 840px;
+  padding: 44px;
+}
+
+.eyebrow,
+.scopeList dt {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+}
+
+.title {
+  font-size: clamp(28px, 4vw, 38px);
+  font-weight: 680;
+  letter-spacing: -0.045em;
+  line-height: 1.16;
+  margin: 0;
+}
+
+.intro {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.65;
+  margin: 14px 0 0;
+}
+
+.repositoryBlock {
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-top: 36px;
+  padding-bottom: 30px;
+}
+
+.repositoryBlock > div {
+  min-width: 0;
+}
+
+.badge {
+  background: var(--accent-soft);
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  padding: 6px 9px;
+  text-transform: uppercase;
+}
+
+.repositoryBlock h1 {
+  font-family: var(--font-mono);
+  font-size: clamp(32px, 5vw, 46px);
+  font-weight: 580;
+  letter-spacing: -0.055em;
+  line-height: 1.12;
+  margin: 14px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.githubLink {
+  color: var(--accent);
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding-block: 8px;
+  text-decoration: none;
+}
+
+.githubLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.scopeList {
+  margin: 0;
+}
+
+.scopeList > div {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 126px minmax(0, 1fr);
+  padding: 18px 0;
+}
+
+.scopeList dt {
+  align-self: center;
+}
+
+.scopeList dd {
+  line-height: 1.55;
+  margin: 0;
+}
+
+.backgroundNote {
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--surface));
+  border-left: 3px solid var(--accent);
+  border-radius: 0 10px 10px 0;
+  margin-top: 28px;
+  padding: 17px 19px;
+}
+
+.backgroundNote strong {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.backgroundNote p {
+  color: #456159;
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 6px 0 0;
+}
+
+.actions {
+  margin-top: 28px;
+}
+
+.actions button {
+  background: var(--accent);
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 750;
+  min-height: 52px;
+  width: 100%;
+}
+
+.actions button:hover:not(:disabled) {
+  background: #0d5b46;
+}
+
+.actions button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.5;
+  margin: 14px 0 0;
+}
+
+.changeLink {
+  color: var(--accent);
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  gap: 7px;
+  margin-top: 20px;
+  text-decoration: none;
+}
+
+.changeLink:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 720px) {
+  .headerInner {
+    min-height: 68px;
+  }
+
+  .headerNote {
+    font-size: 11px;
+  }
+
+  .content {
+    padding-block: 40px 64px;
+  }
+
+  .card {
+    padding: 28px 24px;
+  }
+
+  .repositoryBlock {
+    align-items: start;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 30px;
+    padding-bottom: 24px;
+  }
+
+  .repositoryBlock h1 {
+    font-size: clamp(30px, 10vw, 40px);
+  }
+
+  .scopeList > div {
+    gap: 7px;
+    grid-template-columns: 1fr;
+    padding: 16px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .headerNote {
+    max-width: 140px;
+    text-align: right;
+  }
+
+  .card {
+    border-radius: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .actions button {
+    transition: none;
+  }
+}
