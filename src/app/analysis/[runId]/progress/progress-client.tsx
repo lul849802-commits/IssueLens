@@ -1,5 +1,286 @@
 "use client";
+
+import Link from "next/link";
 import { useEffect, useState } from "react";
+
 import { AnalysisHeader } from "@/components/analysis-header";
-type Status = { repositorySlug: string; status: string; progress: { total: number; succeeded: number; failed: number; pending: number }; isTerminal: boolean; updatedAt: string };
-export function ProgressClient({ runId, initial }: { runId: string; initial: Status }) { const [data, setData] = useState(initial); const [pollError, setPollError] = useState(false); useEffect(() => { if (data.isTerminal) return; const timer = setInterval(async () => { try { const response = await fetch(`/api/analysis/${runId}/status`, { cache: "no-store" }); if (!response.ok) throw new Error(); setData((await response.json()).data); setPollError(false); } catch { setPollError(true); } }, 2500); return () => clearInterval(timer); }, [runId, data.isTerminal]); const done = data.progress.succeeded + data.progress.failed; const percentage = data.progress.total ? Math.round(done / data.progress.total * 100) : 5; const labels: Record<string,string> = { queued: "任务已排队", fetching: "正在读取 GitHub Issue", analyzing: "AI 正在逐条分析", clustering: "正在分片生成问题簇", aggregating: "正在整理问题簇", complete: "分析完成", partial: "分析完成，部分条目失败", failed: "分析未完成" }; return <main><AnalysisHeader runId={runId} repository={data.repositorySlug} active="progress"/><section className="progress-wrap shell"><p className="eyebrow">Analysis run</p><h1>{labels[data.status] ?? "正在处理"}</h1><p className="lead compact">任务在后台持续运行，关闭页面不会中断。完成后由你决定何时进入结果页。</p><div className="progress-card" aria-live="polite"><div className="progress-meta"><strong>{done} / {data.progress.total || "—"}</strong><span>{percentage}%</span></div><div className="progress-track" role="progressbar" aria-label="分析进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentage}><span style={{ width: `${percentage}%` }}/></div><div className="status-grid"><div><span>已成功</span><strong>{data.progress.succeeded}</strong></div><div><span>失败</span><strong>{data.progress.failed}</strong></div><div><span>等待中</span><strong>{data.progress.pending}</strong></div></div></div>{pollError && <p className="warning" role="status">网络暂时中断，页面会继续尝试获取状态。</p>}{data.status === "partial" && <p className="warning">部分 Issue 分析失败；可用结果仍可浏览，统计只基于成功条目。</p>}{data.isTerminal && data.status !== "failed" && <a className="button-link" href={`/analysis/${runId}/overview`}>查看分析结果</a>}{data.status === "failed" && <p className="error">任务未能完成，请返回首页重新创建。</p>}<p className="timestamp">最近更新：{new Date(data.updatedAt).toLocaleString("zh-CN")}</p></section></main>; }
+import {
+  issueProgress,
+  pipelineStates,
+  runDescription,
+  runStatusCopy,
+  type PipelineStageState,
+  type ProgressCounts,
+} from "@/components/progress-presentation";
+import type { RunStatus } from "@/domain/runs/run-state";
+
+import styles from "./progress-page.module.css";
+
+interface Status {
+  repositorySlug: string;
+  status: RunStatus;
+  progress: ProgressCounts;
+  isTerminal: boolean;
+  updatedAt: string;
+}
+
+const pipelineStages = [
+  { label: "Fetch Issues", index: "01" },
+  { label: "Analyze Issues", index: "02" },
+  { label: "Build Clusters", index: "03" },
+  { label: "Prepare Insights", index: "04" },
+];
+
+const stageStateLabels: Record<PipelineStageState, string> = {
+  complete: "Complete",
+  active: "In progress",
+  pending: "Pending",
+  partial: "Completed with gaps",
+};
+
+const stageStateIcons: Record<PipelineStageState, string> = {
+  complete: "✓",
+  active: "●",
+  pending: "○",
+  partial: "!",
+};
+
+function stageDetail(
+  stageIndex: number,
+  state: PipelineStageState,
+  counts: ProgressCounts,
+): string {
+  const processed = counts.succeeded + counts.failed;
+  if (state === "pending") return stageIndex === 0 ? "等待后台任务" : "等待中";
+
+  if (stageIndex === 0) {
+    return state === "active"
+      ? "正在读取公开 Issue"
+      : `已读取 ${counts.total} 条`;
+  }
+  if (stageIndex === 1) {
+    if (state === "active") return `${processed}/${counts.total || "—"} 已处理`;
+    if (state === "partial") return `${counts.succeeded} 成功 · ${counts.failed} 失败`;
+    return `${processed}/${counts.total || processed} 已处理`;
+  }
+  if (stageIndex === 2) {
+    return state === "active" ? "正在归纳相关反馈" : "聚类完成";
+  }
+  return state === "active" ? "正在整理最终结果" : "洞察已生成";
+}
+
+function timestampLabel(status: RunStatus, pollError: boolean): string {
+  if (pollError) return "Last successful sync";
+  if (status === "complete") return "Completed at";
+  if (status === "partial") return "Completed with gaps at";
+  if (status === "failed") return "Failed at";
+  return "Status synced at";
+}
+
+function formatTimestamp(value: string): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
+export function ProgressClient({
+  runId,
+  initial,
+}: {
+  runId: string;
+  initial: Status;
+}) {
+  const [data, setData] = useState(initial);
+  const [pollError, setPollError] = useState(false);
+
+  useEffect(() => {
+    if (data.isTerminal) return;
+
+    const timer = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/analysis/${runId}/status`, {
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error();
+        const payload = await response.json();
+        setData(payload.data as Status);
+        setPollError(false);
+      } catch {
+        setPollError(true);
+      }
+    }, 2500);
+
+    return () => clearInterval(timer);
+  }, [runId, data.isTerminal]);
+
+  const copy = runStatusCopy[data.status];
+  const description = runDescription(data.status, data.progress);
+  const states = pipelineStates(data.status, data.progress.failed);
+  const { processed, percentage } = issueProgress(data.progress);
+  const overviewAvailable = data.status === "complete" || data.status === "partial";
+  const isEmpty = data.status === "complete" && data.progress.total === 0;
+  const isFailed = data.status === "failed";
+  const isTerminalResult = overviewAvailable && !isEmpty;
+
+  return (
+    <main className={styles.page}>
+      <AnalysisHeader
+        runId={runId}
+        repository={data.repositorySlug}
+        active="progress"
+        overviewAvailable={overviewAvailable}
+      />
+
+      <section className={`${styles.content} shell`} data-status={data.status}>
+        <header className={styles.hero} aria-live="polite" aria-atomic="true">
+          <p className={styles.eyebrow}>
+            Analysis run <span aria-hidden="true">·</span>{" "}
+            <strong>{copy.tag}</strong>
+          </p>
+          <h1>{isEmpty ? "没有找到可分析的 Issue" : copy.title}</h1>
+          <p>{description}</p>
+        </header>
+
+        <section className={styles.runCard} aria-label="分析任务进度">
+          {pollError && (
+            <div className={styles.connectionWarning} role="status">
+              <strong>Connection interrupted · Reconnecting</strong>
+              <span>暂时无法同步最新状态，后台任务可能仍在继续运行。</span>
+            </div>
+          )}
+
+          {isFailed ? (
+            <div className={styles.failureState} role="alert">
+              <span className={styles.failureIcon} aria-hidden="true">×</span>
+              <h2>这次分析任务未能完成</h2>
+              <p>请返回首页重新创建任务。未生成的结果不会进入洞察统计。</p>
+              <Link href="/">返回首页重新开始</Link>
+            </div>
+          ) : isEmpty ? (
+            <div className={styles.emptyState}>
+              <span aria-hidden="true">○</span>
+              <h2>当前范围内没有可分析内容</h2>
+              <p>该仓库可能没有公开 Issue，或者读取到的内容均为 Pull Requests。</p>
+              <Link href="/">Change repository</Link>
+            </div>
+          ) : (
+            <>
+              <ol className={styles.pipeline} aria-label="Analysis Pipeline">
+                {pipelineStages.map((stage, index) => {
+                  const state = states[index]!;
+                  return (
+                    <li
+                      className={styles[state]}
+                      key={stage.label}
+                      aria-current={state === "active" ? "step" : undefined}
+                    >
+                      <div className={styles.stageTop}>
+                        <span className={styles.stageIcon} aria-hidden="true">
+                          {stageStateIcons[state]}
+                        </span>
+                        <span className={styles.stageIndex}>{stage.index}</span>
+                      </div>
+                      <strong>{stage.label}</strong>
+                      <span className={styles.stageStatus}>{stageStateLabels[state]}</span>
+                      <small>{stageDetail(index, state, data.progress)}</small>
+                    </li>
+                  );
+                })}
+              </ol>
+
+              {isTerminalResult ? (
+                <div className={styles.terminalArea}>
+                  {data.status === "partial" && (
+                    <div className={styles.partialWarning} role="status">
+                      <strong>Partial result</strong>
+                      <span>
+                        {data.progress.failed} 条 Issue 未成功；可用结果和缺口都会保留。
+                      </span>
+                    </div>
+                  )}
+                  <div className={styles.summaryGrid}>
+                    <div>
+                      <span>Issues analyzed</span>
+                      <strong>{data.progress.succeeded}</strong>
+                    </div>
+                    <div>
+                      <span>Failed</span>
+                      <strong>{data.progress.failed}</strong>
+                    </div>
+                    <div>
+                      <span>Status</span>
+                      <strong className={styles.statusValue}>{copy.tag}</strong>
+                    </div>
+                  </div>
+                  <Link className={styles.resultLink} href={`/analysis/${runId}/overview`}>
+                    {data.status === "partial" ? "查看可用洞察" : "查看洞察总览"}
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                </div>
+              ) : (
+                <section className={styles.issueProgress} aria-labelledby="issue-progress-title">
+                  <header>
+                    <div>
+                      <p>Issue analysis</p>
+                      <h2 id="issue-progress-title">
+                        {percentage === null
+                          ? "正在确定可分析 Issue 数量"
+                          : `${processed} / ${data.progress.total} processed`}
+                      </h2>
+                    </div>
+                    <strong>{percentage === null ? "Determining scope" : `${percentage}%`}</strong>
+                  </header>
+                  {percentage === null ? (
+                    <div
+                      className={`${styles.progressTrack} ${styles.indeterminate}`}
+                      role="progressbar"
+                      aria-label="正在确定可分析 Issue 数量"
+                    >
+                      <span />
+                    </div>
+                  ) : (
+                    <div
+                      className={styles.progressTrack}
+                      role="progressbar"
+                      aria-label="Issue analysis progress"
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={percentage}
+                    >
+                      <span style={{ width: `${percentage}%` }} />
+                    </div>
+                  )}
+                  <div className={styles.countGrid}>
+                    <div>
+                      <span>Completed</span>
+                      <strong>{data.progress.succeeded}</strong>
+                    </div>
+                    <div>
+                      <span>Failed</span>
+                      <strong>{data.progress.failed}</strong>
+                    </div>
+                    <div>
+                      <span>Remaining</span>
+                      <strong>{data.progress.pending}</strong>
+                    </div>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+        </section>
+
+        <p className={styles.timestamp} suppressHydrationWarning>
+          {timestampLabel(data.status, pollError)} · {formatTimestamp(data.updatedAt)}
+        </p>
+      </section>
+    </main>
+  );
+}

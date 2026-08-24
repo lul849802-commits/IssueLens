@@ -1,0 +1,516 @@
+.page {
+  background:
+    radial-gradient(circle at 76% 15%, rgba(18, 108, 84, 0.07), transparent 25rem),
+    linear-gradient(rgba(23, 34, 31, 0.024) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 34, 31, 0.024) 1px, transparent 1px),
+    var(--canvas);
+  background-size: auto, 44px 44px, 44px 44px, auto;
+  min-height: 100vh;
+}
+
+.content {
+  padding-block: 64px 90px;
+}
+
+.hero {
+  max-width: 860px;
+}
+
+.eyebrow,
+.issueProgress header p,
+.stageIndex,
+.stageStatus,
+.summaryGrid span,
+.countGrid span {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  margin: 0 0 18px;
+}
+
+.eyebrow span {
+  color: var(--muted);
+  margin-inline: 5px;
+}
+
+.eyebrow strong {
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 5px 8px;
+}
+
+.content[data-status="partial"] .eyebrow strong {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.content[data-status="failed"] .eyebrow strong {
+  background: #fce9e6;
+  color: var(--danger);
+}
+
+.hero h1 {
+  font-size: clamp(44px, 5vw, 56px);
+  font-weight: 650;
+  letter-spacing: -0.052em;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.hero > p:last-child {
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+  margin: 18px 0 0;
+  max-width: 760px;
+}
+
+.runCard {
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(20, 43, 35, 0.1);
+  margin-top: 38px;
+  max-width: 920px;
+  overflow: hidden;
+  padding: 34px;
+}
+
+.connectionWarning,
+.partialWarning {
+  align-items: flex-start;
+  background: var(--warning-bg);
+  border: 1px solid #ead7a4;
+  border-radius: 10px;
+  color: var(--warning);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 26px;
+  padding: 13px 16px;
+}
+
+.connectionWarning strong,
+.partialWarning strong {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.connectionWarning span,
+.partialWarning span {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pipeline {
+  display: grid;
+  gap: 0;
+  grid-template-columns: repeat(4, 1fr);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.pipeline::before {
+  background: var(--line);
+  content: "";
+  height: 1px;
+  left: 22px;
+  position: absolute;
+  right: 22px;
+  top: 17px;
+}
+
+.pipeline li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-right: 20px;
+  position: relative;
+}
+
+.pipeline li:last-child {
+  padding-right: 0;
+}
+
+.stageTop {
+  align-items: center;
+  display: flex;
+  height: 34px;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-right: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.stageIcon {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 12px;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.stageIndex {
+  color: #8b9691;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.pipeline li > strong {
+  font-size: 14px;
+  letter-spacing: -0.02em;
+}
+
+.stageStatus {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  margin-top: 7px;
+}
+
+.pipeline li > small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin-top: 5px;
+}
+
+.complete .stageIcon,
+.active .stageIcon {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.complete .stageStatus,
+.active .stageStatus {
+  color: var(--accent);
+}
+
+.active .stageIcon {
+  box-shadow: 0 0 0 5px var(--accent-soft);
+}
+
+.partial .stageIcon {
+  background: var(--warning-bg);
+  border-color: #d7b964;
+  color: var(--warning);
+}
+
+.partial .stageStatus {
+  color: var(--warning);
+}
+
+.issueProgress,
+.terminalArea {
+  border-top: 1px solid var(--line);
+  margin-top: 32px;
+  padding-top: 28px;
+}
+
+.issueProgress header {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+}
+
+.issueProgress header p {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  margin: 0 0 8px;
+}
+
+.issueProgress h2 {
+  font-size: 24px;
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+
+.issueProgress header > strong {
+  font-size: 18px;
+}
+
+.progressTrack {
+  background: #e8edea;
+  border-radius: 999px;
+  height: 9px;
+  margin: 22px 0 24px;
+  overflow: hidden;
+}
+
+.progressTrack span {
+  background: var(--accent);
+  display: block;
+  height: 100%;
+  transition: width 0.35s ease;
+}
+
+.indeterminate span {
+  animation: indeterminate 1.5s ease-in-out infinite;
+  border-radius: inherit;
+  width: 34%;
+}
+
+@keyframes indeterminate {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(310%); }
+}
+
+.countGrid,
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.countGrid > div,
+.summaryGrid > div {
+  display: grid;
+  gap: 8px;
+  padding: 4px 24px;
+}
+
+.countGrid > div:first-child,
+.summaryGrid > div:first-child {
+  padding-left: 0;
+}
+
+.countGrid > div + div,
+.summaryGrid > div + div {
+  border-left: 1px solid var(--line);
+}
+
+.countGrid span,
+.summaryGrid span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.countGrid strong,
+.summaryGrid strong {
+  font-size: 28px;
+}
+
+.terminalArea {
+  display: grid;
+  gap: 24px;
+}
+
+.terminalArea .partialWarning {
+  margin-bottom: 0;
+}
+
+.statusValue {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 19px !important;
+  text-transform: uppercase;
+}
+
+.content[data-status="partial"] .statusValue {
+  color: var(--warning);
+}
+
+.resultLink,
+.failureState a,
+.emptyState a {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 10px;
+  color: white;
+  display: inline-flex;
+  font-weight: 750;
+  gap: 12px;
+  justify-content: center;
+  justify-self: end;
+  min-height: 50px;
+  padding: 0 20px;
+  text-decoration: none;
+}
+
+.failureState,
+.emptyState {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 6px 8px;
+}
+
+.failureState > span,
+.emptyState > span {
+  align-items: center;
+  background: #fce9e6;
+  border-radius: 50%;
+  color: var(--danger);
+  display: inline-flex;
+  font-size: 24px;
+  height: 46px;
+  justify-content: center;
+  width: 46px;
+}
+
+.emptyState > span {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.failureState h2,
+.emptyState h2 {
+  font-size: 26px;
+  letter-spacing: -0.035em;
+  margin: 24px 0 0;
+}
+
+.failureState p,
+.emptyState p {
+  color: var(--muted);
+  line-height: 1.65;
+  margin: 10px 0 24px;
+}
+
+.failureState a {
+  background: var(--danger);
+  justify-self: auto;
+}
+
+.emptyState a {
+  justify-self: auto;
+}
+
+.timestamp {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  margin: 18px 0 0;
+  max-width: 920px;
+}
+
+@media (max-width: 800px) {
+  .content {
+    padding-block: 48px 70px;
+  }
+
+  .runCard {
+    padding: 28px 24px;
+  }
+
+  .pipeline {
+    gap: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .pipeline::before {
+    bottom: 34px;
+    height: auto;
+    left: 16px;
+    right: auto;
+    top: 17px;
+    width: 1px;
+  }
+
+  .pipeline li {
+    display: grid;
+    gap: 3px 16px;
+    grid-template-columns: 34px minmax(0, 1fr);
+    padding: 0 0 24px;
+  }
+
+  .pipeline li:last-child {
+    padding-bottom: 0;
+  }
+
+  .stageTop {
+    grid-row: 1 / 4;
+    height: 34px;
+    margin: 0;
+    padding: 0;
+  }
+
+  .stageIndex {
+    display: none;
+  }
+
+  .pipeline li > strong,
+  .stageStatus,
+  .pipeline li > small {
+    grid-column: 2;
+  }
+
+  .pipeline li > small {
+    margin-top: 2px;
+  }
+}
+
+@media (max-width: 560px) {
+  .content {
+    padding-block: 40px 60px;
+  }
+
+  .hero h1 {
+    font-size: 40px;
+  }
+
+  .runCard {
+    border-radius: 16px;
+    margin-top: 30px;
+    padding: 24px;
+  }
+
+  .issueProgress header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .countGrid,
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .countGrid > div,
+  .summaryGrid > div,
+  .countGrid > div:first-child,
+  .summaryGrid > div:first-child {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    padding: 13px 0;
+  }
+
+  .countGrid > div + div,
+  .summaryGrid > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .resultLink {
+    justify-self: stretch;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indeterminate span {
+    animation: none;
+    transform: none;
+  }
+
+  .progressTrack span {
+    transition: none;
+  }
+}
