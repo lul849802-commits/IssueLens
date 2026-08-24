@@ -1,10 +1,118 @@
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+
 import { AnalysisHeader } from "@/components/analysis-header";
+import { IssueMarkdown } from "@/components/issue-markdown";
 import { actionLabels, categoryLabels, label, severityLabels } from "@/components/labels";
 import { getDatabase } from "@/db/client";
 import { creatorCookieName } from "@/domain/creator-access/cookie";
 import { getIssueDetail, getRunContext, isRunCreator, listRunClusters } from "@/queries/product";
+
 import { CorrectionForm } from "./correction-form";
+import styles from "./issue-page.module.css";
+
 export const dynamic = "force-dynamic";
-export default async function IssuePage({ params }: { params: Promise<{ runId: string; runIssueId: string }> }) { const {runId,runIssueId}=await params; const {db}=getDatabase(); const [context,item,clusterRows]=await Promise.all([getRunContext(db,runId),getIssueDetail(db,runId,runIssueId),listRunClusters(db,runId)]); if(!context||!item) notFound(); const creator=await isRunCreator(db,runId,(await cookies()).get(creatorCookieName(runId))?.value); return <main><AnalysisHeader runId={runId} repository={`${context.repository.owner}/${context.repository.name}`} active="overview" readOnly={!creator}/><div className="detail-page shell"><a className="back-link" href={`/analysis/${runId}/overview#issues`}>← 返回 Issue 列表</a><section className="issue-title"><div><p className="eyebrow">Issue #{item.issue.issueNumber}</p><h1>{item.issue.title}</h1><div className="meta-row"><span>{item.issue.state === "open"?"Open":"Closed"}</span><span>{item.issue.commentsCount} 条评论</span><span>更新于 {item.issue.githubUpdatedAt.toLocaleDateString("zh-CN")}</span></div></div><a className="secondary button-link subtle" href={item.issue.htmlUrl} target="_blank" rel="noreferrer">在 GitHub 查看 ↗</a></section>{item.runIssue.status==="failed"||!item.effective?<section className="panel empty-state"><h2>这条 Issue 暂时没有有效分析</h2><p>{item.runIssue.errorPublicMessage??"可稍后重新运行分析。"}</p></section>:<section className="evidence-layout"><article className="evidence-card"><p className="eyebrow">Original evidence</p><h2>GitHub 原文</h2><div className="issue-body">{item.issue.body||"（作者未提供正文）"}</div><div className="labels">{item.issue.labels.map((value)=><span className="badge neutral" key={value}>{value}</span>)}</div></article><article className="analysis-card"><div className="section-title"><div><p className="eyebrow">AI analysis</p><h2>结构化判断</h2></div>{creator?<CorrectionForm runId={runId} runIssueId={runIssueId} current={{category:item.effective.category,severity:item.effective.severity,productArea:item.effective.productArea,targetClusterId:item.correction?.targetClusterId}} clusters={clusterRows.map(({cluster})=>({id:cluster.id,name:cluster.name}))}/>:<span className="badge neutral">只读</span>}</div>{item.correction&&<p className="success-note">已应用人工修正；原始模型输出仍被保留。</p>}<div className="analysis-summary"><span>摘要</span><p>{item.effective.summary}</p></div><dl className="analysis-fields"><div><dt>类别</dt><dd>{label(categoryLabels,item.effective.category)}</dd></div><div><dt>严重性</dt><dd><span className={`severity ${item.effective.severity}`}>{label(severityLabels,item.effective.severity)}</span></dd></div><div><dt>产品区域</dt><dd>{item.effective.productArea}</dd></div><div><dt>建议动作</dt><dd>{label(actionLabels,item.effective.suggestedAction)}</dd></div><div><dt>用户场景</dt><dd>{item.effective.userScenario}</dd></div><div><dt>可复现性</dt><dd>{item.effective.reproducibility}</dd></div><div><dt>置信度</dt><dd>{Math.round(item.effective.confidence*100)}%</dd></div></dl><div className="rationale"><span>判断依据</span><p>{item.effective.rationale}</p></div></article></section>}</div></main>; }
+
+export default async function IssuePage({ params }: { params: Promise<{ runId: string; runIssueId: string }> }) {
+  const { runId, runIssueId } = await params;
+  const { db } = getDatabase();
+  const [context, item, clusterRows] = await Promise.all([
+    getRunContext(db, runId),
+    getIssueDetail(db, runId, runIssueId),
+    listRunClusters(db, runId),
+  ]);
+  if (!context || !item) notFound();
+
+  const creator = await isRunCreator(db, runId, (await cookies()).get(creatorCookieName(runId))?.value);
+  const analysis = item.effective;
+
+  return (
+    <main className={styles.page}>
+      <AnalysisHeader runId={runId} repository={`${context.repository.owner}/${context.repository.name}`}
+        active="overview" readOnly={!creator} />
+      <div className={`shell ${styles.detailPage}`}>
+        <a className={styles.backLink} href={`/analysis/${runId}/overview#issues`}>← 返回 Issue 列表</a>
+
+        <section className={styles.hero} aria-labelledby="issue-title">
+          <div className={styles.heroCopy}>
+            <p className={styles.eyebrow}>Issue #{item.issue.issueNumber}</p>
+            <h1 id="issue-title">{item.issue.title}</h1>
+            <div className={styles.metadata}>
+              <span className={item.issue.state === "open" ? styles.openState : styles.closedState}>
+                {item.issue.state === "open" ? "Open" : "Closed"}
+              </span>
+              <span>{item.issue.commentsCount} comments</span>
+              <span>Updated {formatDate(item.issue.githubUpdatedAt)}</span>
+            </div>
+          </div>
+          <a className={styles.githubButton} href={item.issue.htmlUrl} target="_blank" rel="noreferrer">View on GitHub ↗</a>
+        </section>
+
+        {item.runIssue.status === "failed" || !analysis ? (
+          <section className={`${styles.card} ${styles.unavailable}`}>
+            <p className={styles.eyebrow}>Analysis unavailable</p>
+            <h2>这条 Issue 暂时没有有效分析</h2>
+            <p>{item.runIssue.errorPublicMessage ?? "你仍然可以通过上方链接查看 GitHub 原文。"}</p>
+          </section>
+        ) : (
+          <section className={styles.evidenceLayout}>
+            <article className={`${styles.card} ${styles.evidenceCard}`}>
+              <p className={styles.eyebrow}>Original evidence</p>
+              <h2>GitHub 原文</h2>
+              <div className={styles.markdownWrap}><IssueMarkdown value={item.issue.body ?? ""} /></div>
+              {item.issue.labels.length > 0 && (
+                <div className={styles.labels} aria-label="GitHub labels">
+                  {item.issue.labels.map((value) => <span key={value}>{value}</span>)}
+                </div>
+              )}
+            </article>
+
+            <article className={`${styles.card} ${styles.analysisCard}`}>
+              <div className={styles.analysisHeader}>
+                <div><p className={styles.eyebrow}>AI analysis</p><h2>结构化判断</h2></div>
+                {creator ? (
+                  <CorrectionForm runId={runId} runIssueId={runIssueId}
+                    current={{ category: analysis.category, severity: analysis.severity,
+                      productArea: analysis.productArea, targetClusterId: item.correction?.targetClusterId }}
+                    clusters={clusterRows.map(({ cluster }) => ({ id: cluster.id, name: cluster.name }))} />
+                ) : <span className={styles.readOnly}>Read-only</span>}
+              </div>
+
+              {item.correction && (
+                <div className={styles.correctionNote} role="status">
+                  <strong>Human correction applied</strong>
+                  <span>当前使用人工修正后的有效值；原始模型输出仍被保留。</span>
+                </div>
+              )}
+
+              <div className={styles.summaryBox}><span>摘要</span><p>{analysis.summary}</p></div>
+
+              <dl className={styles.primaryFields}>
+                <Field labelText="Category" value={label(categoryLabels, analysis.category)} />
+                <div><dt>Severity</dt><dd><i className={`${styles.severity} ${styles[`severity_${analysis.severity}`] ?? ""}`}>{label(severityLabels, analysis.severity)}</i></dd></div>
+                <Field labelText="Suggested action" value={label(actionLabels, analysis.suggestedAction)} />
+                <Field labelText="Product area" value={analysis.productArea} />
+              </dl>
+
+              <dl className={styles.secondaryFields}>
+                <Field labelText="User scenario" value={analysis.userScenario} />
+                <Field labelText="Reproducibility" value={analysis.reproducibility} />
+                <Field labelText="Confidence" value={`${Math.round(analysis.confidence * 100)}%`} />
+              </dl>
+
+              <div className={styles.rationale}><span>判断依据</span><p>{analysis.rationale}</p></div>
+            </article>
+          </section>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function Field({ labelText, value }: { labelText: string; value: string }) {
+  return <div><dt>{labelText}</dt><dd>{value}</dd></div>;
+}
+
+function formatDate(value: Date) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(value);
+}
