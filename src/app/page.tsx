@@ -1,9 +1,8 @@
 "use client";
 
-import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import styles from "./page.module.css";
 
@@ -40,9 +39,10 @@ const capabilities = [
 
 export default function Home() {
   const router = useRouter();
+  const scopeDialog = useRef<HTMLDialogElement>(null);
   const [repository, setRepository] = useState("");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "validating" | "creating">("idle");
 
   useEffect(() => {
     document
@@ -52,28 +52,41 @@ export default function Home() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (phase !== "idle") return;
     setError("");
-    setLoading(true);
+    setPhase("validating");
 
     try {
-      const response = await fetch("/api/repositories/validate", {
+      const validationResponse = await fetch("/api/repositories/validate", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ repository }),
       });
-      const payload = await response.json();
+      const validationPayload = await validationResponse.json();
 
-      if (!response.ok) {
-        throw new Error(payload.error?.message ?? "无法验证仓库");
+      if (!validationResponse.ok) {
+        throw new Error(validationPayload.error?.message ?? "无法验证仓库");
       }
 
-      router.push(
-        `/analysis/new?repository=${encodeURIComponent(payload.data.repository.slug)}` as Route,
-      );
+      setPhase("creating");
+      const analysisResponse = await fetch("/api/analysis", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          repository: validationPayload.data.repository.slug,
+          limit: 100,
+        }),
+      });
+      const analysisPayload = await analysisResponse.json();
+
+      if (!analysisResponse.ok) {
+        throw new Error(analysisPayload.error?.message ?? "暂时无法创建分析任务");
+      }
+
+      router.push(analysisPayload.links.progress);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "无法验证仓库");
-    } finally {
-      setLoading(false);
+      setPhase("idle");
     }
   }
 
@@ -128,13 +141,26 @@ export default function Home() {
               required
               aria-describedby="repo-help repo-error"
             />
-            <button disabled={loading}>
-              {loading ? "正在验证…" : "开始分析"}
+            <button disabled={phase !== "idle"}>
+              {phase === "validating"
+                ? "正在验证…"
+                : phase === "creating"
+                  ? "正在创建…"
+                  : "开始分析"}
             </button>
           </div>
-          <p id="repo-help" className={styles.help}>
-            Public repositories only · 无需 GitHub 登录 · 不读取评论正文
-          </p>
+          <div className={styles.helpRow}>
+            <p id="repo-help" className={styles.help}>
+              Public repositories only · 无需 GitHub 登录 · 不读取评论正文
+            </p>
+            <button
+              className={styles.scopeTrigger}
+              type="button"
+              onClick={() => scopeDialog.current?.showModal()}
+            >
+              Analysis scope
+            </button>
+          </div>
           <button
             className={styles.example}
             type="button"
@@ -151,6 +177,38 @@ export default function Home() {
             </p>
           )}
         </form>
+
+        <dialog
+          className={styles.scopeDialog}
+          ref={scopeDialog}
+          aria-labelledby="scope-title"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) event.currentTarget.close();
+          }}
+        >
+          <div className={styles.scopePanel}>
+            <div className={styles.scopeHeader}>
+              <div>
+                <p>Analysis scope</p>
+                <h2 id="scope-title">本次会分析什么</h2>
+              </div>
+              <button
+                type="button"
+                aria-label="关闭分析范围说明"
+                onClick={() => scopeDialog.current?.close()}
+              >
+                ×
+              </button>
+            </div>
+            <dl className={styles.scopeList}>
+              <div><dt>Source</dt><dd>GitHub Issues</dd></div>
+              <div><dt>Scope</dt><dd>最近更新的最多 100 条 · Open + Closed</dd></div>
+              <div><dt>Excludes</dt><dd>Pull Requests · 评论正文 · 私有仓库</dd></div>
+              <div><dt>Output</dt><dd>结构化分析 · 问题簇 · 暂定优先级 · 原文证据</dd></div>
+            </dl>
+            <p className={styles.scopeNote}>开始后可关闭页面，后台分析不会中断。</p>
+          </div>
+        </dialog>
       </section>
 
       <section className={`${styles.proofStrip} shell`} aria-label="产品可信特性">

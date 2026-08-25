@@ -63,12 +63,33 @@
   margin: 0;
 }
 
-.hero > p:last-child {
+.hero > p:last-of-type {
   color: var(--muted);
   font-size: 16px;
   line-height: 1.7;
   margin: 18px 0 0;
   max-width: 760px;
+}
+
+.scopeLine {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  gap: 8px 12px;
+  margin-top: 18px;
+}
+
+.scopeLine strong {
+  background: var(--accent-soft);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 5px 8px;
+  text-transform: uppercase;
 }
 
 .runCard {
@@ -312,6 +333,13 @@
   gap: 24px;
 }
 
+.redirectNote {
+  color: var(--muted);
+  font-size: 12px;
+  justify-self: end;
+  margin: -14px 0 0;
+}
+
 .terminalArea .partialWarning {
   margin-bottom: 0;
 }
@@ -501,6 +529,10 @@
 
   .resultLink {
     justify-self: stretch;
+  }
+
+  .redirectNote {
+    justify-self: center;
   }
 }
 

@@ -62,6 +62,17 @@ export function issueProgress(counts: ProgressCounts) {
   };
 }
 
+export function shouldAutoOpenOverview(
+  status: RunStatus,
+  counts: ProgressCounts,
+  connectionInterrupted: boolean,
+): boolean {
+  return status === "complete"
+    && counts.total > 0
+    && counts.succeeded > 0
+    && !connectionInterrupted;
+}
+
 export function runDescription(status: RunStatus, counts: ProgressCounts): string {
   switch (status) {
     case "queued":

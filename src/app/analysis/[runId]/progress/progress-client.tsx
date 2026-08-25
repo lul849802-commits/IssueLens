@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { AnalysisHeader } from "@/components/analysis-header";
 import {
@@ -9,6 +10,7 @@ import {
   pipelineStates,
   runDescription,
   runStatusCopy,
+  shouldAutoOpenOverview,
   type PipelineStageState,
   type ProgressCounts,
 } from "@/components/progress-presentation";
@@ -97,6 +99,8 @@ export function ProgressClient({
   runId: string;
   initial: Status;
 }) {
+  const router = useRouter();
+  const hasRedirected = useRef(false);
   const [data, setData] = useState(initial);
   const [pollError, setPollError] = useState(false);
 
@@ -129,6 +133,36 @@ export function ProgressClient({
   const isFailed = data.status === "failed";
   const isTerminalResult = overviewAvailable && !isEmpty;
 
+  useEffect(() => {
+    if (!shouldAutoOpenOverview(data.status, data.progress, pollError)) return;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const openOverview = () => {
+      if (hasRedirected.current || document.visibilityState !== "visible") return;
+      hasRedirected.current = true;
+      router.push(`/analysis/${runId}/overview`);
+    };
+    const schedule = () => {
+      if (document.visibilityState === "visible" && !hasRedirected.current) {
+        timer = setTimeout(openOverview, 1000);
+      }
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState !== "visible") {
+        if (timer) clearTimeout(timer);
+        return;
+      }
+      schedule();
+    };
+
+    schedule();
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [data.status, data.progress, pollError, router, runId]);
+
   return (
     <main className={styles.page}>
       <AnalysisHeader
@@ -146,6 +180,10 @@ export function ProgressClient({
           </p>
           <h1>{isEmpty ? "没有找到可分析的 Issue" : copy.title}</h1>
           <p>{description}</p>
+          <div className={styles.scopeLine} aria-label="分析范围">
+            <strong>Analysis scope</strong>
+            <span>Up to 100 recent Issues · Open + Closed · Comments excluded</span>
+          </div>
         </header>
 
         <section className={styles.runCard} aria-label="分析任务进度">
@@ -220,9 +258,14 @@ export function ProgressClient({
                     </div>
                   </div>
                   <Link className={styles.resultLink} href={`/analysis/${runId}/overview`}>
-                    {data.status === "partial" ? "查看可用洞察" : "查看洞察总览"}
+                    {data.status === "partial" ? "查看可用洞察" : "立即查看结果"}
                     <span aria-hidden="true">→</span>
                   </Link>
+                  {data.status === "complete" && (
+                    <p className={styles.redirectNote} role="status">
+                      正在进入 Issue 洞察总览…
+                    </p>
+                  )}
                 </div>
               ) : (
                 <section className={styles.issueProgress} aria-labelledby="issue-progress-title">

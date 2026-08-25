@@ -4,6 +4,7 @@ import {
   issueProgress,
   pipelineStates,
   runDescription,
+  shouldAutoOpenOverview,
 } from "@/components/progress-presentation";
 
 describe("progress presentation", () => {
@@ -58,5 +59,15 @@ describe("progress presentation", () => {
       failed: 2,
       pending: 0,
     })).toContain("35 条 Issue 已形成有效分析，2 条未成功");
+  });
+
+  it("only auto-opens a complete, non-empty result with a healthy connection", () => {
+    const result = { total: 37, succeeded: 37, failed: 0, pending: 0 };
+    expect(shouldAutoOpenOverview("complete", result, false)).toBe(true);
+    expect(shouldAutoOpenOverview("partial", result, false)).toBe(false);
+    expect(shouldAutoOpenOverview("failed", result, false)).toBe(false);
+    expect(shouldAutoOpenOverview("complete", { ...result, total: 0 }, false)).toBe(false);
+    expect(shouldAutoOpenOverview("complete", { ...result, succeeded: 0 }, false)).toBe(false);
+    expect(shouldAutoOpenOverview("complete", result, true)).toBe(false);
   });
 });
