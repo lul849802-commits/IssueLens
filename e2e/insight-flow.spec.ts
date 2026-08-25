@@ -22,6 +22,9 @@ test.describe("persisted insight flow", () => {
     await expect(page.getByRole("heading", { name: "GitHub 原文" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "结构化判断" })).toBeVisible();
     await expect(page.getByRole("button", { name: "修正 AI 判断" })).toHaveCount(0);
+    await page.getByRole("link", { name: "← 返回 Issue 列表" }).click();
+    await expect(page).toHaveURL(/overview\?view=issues$/);
+    await expect(page.getByRole("heading", { name: "逐条查看 Issue" })).toBeVisible();
   });
 
   test("overview has no serious accessibility violations and no mobile overflow", async ({ page }) => {

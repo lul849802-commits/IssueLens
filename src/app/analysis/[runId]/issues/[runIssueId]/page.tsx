@@ -31,7 +31,7 @@ export default async function IssuePage({ params }: { params: Promise<{ runId: s
       <AnalysisHeader runId={runId} repository={`${context.repository.owner}/${context.repository.name}`}
         active="overview" readOnly={!creator} />
       <div className={`shell ${styles.detailPage}`}>
-        <a className={styles.backLink} href={`/analysis/${runId}/overview#issues`}>← 返回 Issue 列表</a>
+        <a className={styles.backLink} href={`/analysis/${runId}/overview?view=issues`}>← 返回 Issue 列表</a>
 
         <section className={styles.hero} aria-labelledby="issue-title">
           <div className={styles.heroCopy}>
