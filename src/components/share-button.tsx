@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 
-export function ShareButton({ className }: { className?: string }) {
+export function ShareButton({ className, href }: { className?: string; href?: string }) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
-    await navigator.clipboard.writeText(window.location.href);
+    const shareUrl = href ? new URL(href, window.location.origin).toString() : window.location.href;
+    await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
   }
